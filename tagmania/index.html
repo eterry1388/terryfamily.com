@@ -3,9 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Math Facts</title>
+  <title>Tagmania</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #222;
+      font-family: sans-serif;
+      color: #fff;
+    }
+
+    header {
+      width: 100%;
+      background: #333;
+      padding: 10px 0;
+      text-align: center;
+      font-size: 1.5em;
+      position: fixed;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 60px; /* Adjust for header height */
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 20px;
+      margin: 15px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    iframe {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <iframe src="https://tagmania.terryfamily.com" style="width: 100vw; height: 100vh; border: none;"></iframe>
+  <header>Tagmania</header>
+  <div class="container">
+    <button onclick="loadGame('withoutBots')">Play Without Bots</button>
+    <button onclick="loadGame('withBots')">Play With Bots</button>
+  </div>
+  <iframe id="gameIframe"></iframe>
+
+  <script>
+    function loadGame(option) {
+      const iframe = document.getElementById('gameIframe');
+      const header = document.querySelector('header');
+      const container = document.querySelector('.container');
+
+      if (option === 'withoutBots') {
+        iframe.src = 'https://tagmania2-eb738f86a590.herokuapp.com/';
+      } else if (option === 'withBots') {
+        iframe.src = 'https://tagmania.terryfamily.com';
+      }
+
+      header.style.display = 'none';
+      container.style.display = 'none';
+      iframe.style.display = 'block';
+    }
+  </script>
 </body>
 </html>
