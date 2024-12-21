@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shooter</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0; overflow: hidden;
+      width: 100vw; height: 100vh;
+      background: #222;
+      font-family: sans-serif;
+      color: #fff;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+
+    #miniMapCanvas {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: 1px solid #fff;
+      background: #111;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <b>Controls:</b><br/>
+    Up/Down: Move forward/back<br/>
+    A/D: Strafe left/right<br/>
+    Left/Right Arrow: Turn<br/>
+    Space: Shoot<br/><br/>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <canvas id="miniMapCanvas" width="200" height="200"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const miniMapCanvas = document.getElementById('miniMapCanvas');
+    const miniCtx = miniMapCanvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const map = [
+      [1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,0,1],
+      [1,0,1,0,0,0,1,0,1,0,0,1,0,1,0,0,0,1,0,1],
+      [1,0,1,0,1,0,1,0,1,0,1,1,0,1,0,1,0,1,0,1],
+      [1,0,1,0,1,0,1,0,1,0,0,1,0,1,0,1,0,1,0,1],
+      [1,0,1,0,1,1,1,0,1,1,1,1,0,1,0,1,0,1,0,1],
+      [1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,0,1,1,1,1,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,0,1,1,1,1,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,0,1],
+      [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+      [1,0,1,0,1,1,0,0,0,0,1,1,1,1,1,1,0,1,0,1],
+      [1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1],
+      [1,0,1,0,1,0,0,0,0,0,1,1,1,1,0,1,0,1,0,1],
+      [1,0,0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,1,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    const MAP_WIDTH = map[0].length;
+    const MAP_HEIGHT = map.length;
+    const TILE_SIZE = 32;
+
+    let playerX = TILE_SIZE * 3.5;
+    let playerY = TILE_SIZE * 3.5;
+    let playerAngle = 0;
+    const playerSpeed = 0.025;
+    const turnSpeed = 0.0017;
+    const fov = Math.PI / 3;
+    const keys = {};
+
+    let velocityX = 0;
+    let velocityY = 0;
+    let turnVelocity = 0;
+    const friction = 0.97;
+    const turnFriction = 0.9;
+
+    const bullets = [];
+    const bulletSpeed = 5;
+
+    let lastShotTime = 0;
+    const shotCooldown = 500; // 500 milliseconds cooldown
+
+    window.addEventListener('keydown', e => {
+      e.preventDefault();
+      keys[e.key.toLowerCase()] = true;
+    });
+    window.addEventListener('keyup', e => {
+      e.preventDefault();
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    const enemies = [
+      {x: TILE_SIZE*6.5, y: TILE_SIZE*5.5, angle:0, color:'red'},
+      {x: TILE_SIZE*10.5, y: TILE_SIZE*10.5, angle:0, color:'blue'},
+      {x: TILE_SIZE*3.5, y: TILE_SIZE*10.5, angle:0, color:'green'},
+    ];
+
+    function updateGame() {
+      if (keys['arrowleft'])  turnVelocity -= turnSpeed;
+      if (keys['arrowright']) turnVelocity += turnSpeed;
+
+      playerAngle += turnVelocity;
+      turnVelocity *= turnFriction;
+
+      const moveStep = playerSpeed;
+      const moveX = Math.cos(playerAngle);
+      const moveY = Math.sin(playerAngle);
+
+      if (keys['arrowup']) {
+        velocityX += moveX * moveStep;
+        velocityY += moveY * moveStep;
+      }
+      if (keys['arrowdown']) {
+        velocityX -= moveX * moveStep;
+        velocityY -= moveY * moveStep;
+      }
+
+      if (keys['a']) {
+        const strafeAngle = playerAngle - Math.PI/2;
+        velocityX += Math.cos(strafeAngle) * (moveStep * 0.5);
+        velocityY += Math.sin(strafeAngle) * (moveStep * 0.5);
+      }
+      if (keys['d']) {
+        const strafeAngle = playerAngle + Math.PI/2;
+        velocityX += Math.cos(strafeAngle) * (moveStep * 0.5);
+        velocityY += Math.sin(strafeAngle) * (moveStep * 0.5);
+      }
+
+      if (keys[' ']) {
+        const currentTime = Date.now();
+        if (currentTime - lastShotTime > shotCooldown) {
+          shootBullet();
+          lastShotTime = currentTime;
+        }
+      }
+
+      velocityX *= friction;
+      velocityY *= friction;
+
+      attemptMove(velocityX, velocityY);
+
+      enemies.forEach(e => {
+        e.angle += 0.01;
+      });
+
+      updateBullets();
+    }
+
+    function attemptMove(dx, dy) {
+      const newX = playerX + dx;
+      const newY = playerY + dy;
+      if (!isWall(newX, playerY)) playerX = newX;
+      if (!isWall(playerX, newY)) playerY = newY;
+    }
+
+    function isWall(x, y) {
+      const mx = Math.floor(x / TILE_SIZE);
+      const my = Math.floor(y / TILE_SIZE);
+      if (mx < 0 || mx >= MAP_WIDTH || my < 0 || my >= MAP_HEIGHT) return true;
+      return map[my][mx] === 1;
+    }
+
+    function renderGame() {
+      const viewWidth = canvas.width;
+      const viewHeight = canvas.height;
+
+      drawFloorAndCeiling();
+
+      const wallHits = [];
+      const numRays = viewWidth;
+      const halfFov = fov/2;
+
+      for (let i = 0; i < numRays; i++) {
+        const rayAngle = playerAngle - halfFov + (i / numRays)*fov;
+        const hit = castRay(rayAngle);
+        wallHits.push({...hit, rayAngle, screenX:i});
+      }
+
+      wallHits.forEach(hit => {
+        const correctedDist = hit.dist * Math.cos(hit.rayAngle - playerAngle);
+        const lineHeight = (TILE_SIZE * viewHeight) / correctedDist;
+        const lineTop = (viewHeight/2) - (lineHeight/2);
+
+        const shadeFactor = Math.exp(-correctedDist * 0.01);
+        const shade = Math.max(0, 255 * (0.2 + 1.3 * shadeFactor));
+        const color = `rgb(${shade}, ${shade}, ${shade})`;
+
+        ctx.fillStyle = color;
+        ctx.fillRect(hit.screenX, lineTop, 1, lineHeight);
+      });
+
+      drawSprites(wallHits);
+      drawBullets3D(wallHits);
+      drawMiniMap();
+    }
+
+    function castRay(angle) {
+      let dist = 0;
+      let step = 0.2;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+      let hitX = playerX, hitY = playerY;
+
+      while (dist < 10000) {
+        dist += step;
+        hitX = playerX + cosA*dist;
+        hitY = playerY + sinA*dist;
+        if (isWall(hitX, hitY)) break;
+      }
+
+      return {dist, hitX, hitY};
+    }
+
+    function drawFloorAndCeiling() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.fillStyle = 'rgb(30,30,60)';
+      ctx.fillRect(0,0,w,h/2);
+      ctx.fillStyle = 'rgb(60,60,60)';
+      ctx.fillRect(0,h/2,w,h/2);
+    }
+
+    function drawSprites(wallHits) {
+      const viewWidth = canvas.width;
+      const viewHeight = canvas.height;
+      const halfFov = fov/2;
+
+      const sortedSprites = [...enemies].sort((a,b) => {
+        const distA = dist(playerX, playerY, a.x, a.y);
+        const distB = dist(playerX, playerY, b.x, b.y);
+        return distB - distA;
+      });
+
+      sortedSprites.forEach(sprite => {
+        const dx = sprite.x - playerX;
+        const dy = sprite.y - playerY;
+        const spriteDist = Math.sqrt(dx*dx + dy*dy);
+        const spriteAngle = Math.atan2(dy, dx) - playerAngle;
+        let angle = spriteAngle;
+        angle = (angle + Math.PI*2) % (Math.PI*2);
+        if (angle > Math.PI) angle -= Math.PI*2;
+
+        if (angle < -halfFov || angle > halfFov) return;
+
+        const correctedDist = spriteDist * Math.cos(angle);
+        const spriteHeight = (TILE_SIZE * viewHeight) / correctedDist;
+        const spriteWidth = spriteHeight;
+        const xCenter = (viewWidth/2)*(1 + angle/halfFov);
+        const yCenter = viewHeight/2;
+        const xPos = xCenter - spriteWidth/2;
+        const yPos = yCenter - spriteHeight/2;
+
+        const cx = Math.floor(xCenter);
+        if (cx >= 0 && cx < wallHits.length) {
+          if (wallHits[cx].dist < spriteDist) {
+            return;
+          }
+        }
+
+        ctx.fillStyle = sprite.color;
+        ctx.fillRect(xPos, yPos, spriteWidth, spriteHeight);
+      });
+    }
+
+    function dist(ax, ay, bx, by) {
+      return Math.sqrt((ax-bx)*(ax-bx)+(ay-by)*(ay-by));
+    }
+
+    function drawMiniMap() {
+      const mapScale = 4;
+      miniCtx.clearRect(0,0,miniMapCanvas.width,miniMapCanvas.height);
+
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          if (map[y][x] === 1) {
+            miniCtx.fillStyle = '#999';
+          } else {
+            miniCtx.fillStyle = '#333';
+          }
+          miniCtx.fillRect(x*TILE_SIZE/mapScale, y*TILE_SIZE/mapScale, TILE_SIZE/mapScale, TILE_SIZE/mapScale);
+        }
+      }
+
+      const px = (playerX/TILE_SIZE)* (TILE_SIZE/mapScale);
+      const py = (playerY/TILE_SIZE)* (TILE_SIZE/mapScale);
+      miniCtx.fillStyle = 'yellow';
+      miniCtx.beginPath();
+      miniCtx.arc(px, py, 4, 0, Math.PI*2);
+      miniCtx.fill();
+
+      const lineLength = 20;
+      miniCtx.strokeStyle = 'yellow';
+      miniCtx.beginPath();
+      miniCtx.moveTo(px, py);
+      miniCtx.lineTo(px + Math.cos(playerAngle)*lineLength, py + Math.sin(playerAngle)*lineLength);
+      miniCtx.stroke();
+
+      enemies.forEach(e => {
+        const ex = (e.x/TILE_SIZE)* (TILE_SIZE/mapScale);
+        const ey = (e.y/TILE_SIZE)* (TILE_SIZE/mapScale);
+        miniCtx.fillStyle = e.color;
+        miniCtx.fillRect(ex-2, ey-2, 4, 4);
+      });
+
+      bullets.forEach(bullet => {
+        const bx = (bullet.x/TILE_SIZE)* (TILE_SIZE/mapScale);
+        const by = (bullet.y/TILE_SIZE)* (TILE_SIZE/mapScale);
+        miniCtx.fillStyle = 'white';
+        miniCtx.fillRect(bx-1, by-1, 2, 2);
+      });
+    }
+
+    function shootBullet() {
+      const bullet = {
+        x: playerX,
+        y: playerY,
+        angle: playerAngle,
+        speed: bulletSpeed
+      };
+      bullets.push(bullet);
+    }
+
+    function updateBullets() {
+      bullets.forEach((bullet, index) => {
+        bullet.x += Math.cos(bullet.angle) * bullet.speed;
+        bullet.y += Math.sin(bullet.angle) * bullet.speed;
+
+        if (isWall(bullet.x, bullet.y)) {
+          bullets.splice(index, 1);
+        }
+      });
+    }
+
+    function drawBullets3D(wallHits) {
+      const viewWidth = canvas.width;
+      const viewHeight = canvas.height;
+      const halfFov = fov / 2;
+
+      const sortedBullets = [...bullets].sort((a,b) => {
+        const distA = dist(playerX, playerY, a.x, a.y);
+        const distB = dist(playerX, playerY, b.x, b.y);
+        return distB - distA;
+      });
+
+      sortedBullets.forEach(bullet => {
+        const dx = bullet.x - playerX;
+        const dy = bullet.y - playerY;
+        const bulletDist = Math.sqrt(dx*dx + dy*dy);
+        const bulletAngle = Math.atan2(dy, dx) - playerAngle;
+        let angle = bulletAngle;
+        angle = (angle + Math.PI*2) % (Math.PI*2);
+        if (angle > Math.PI) angle -= Math.PI*2;
+
+        if (angle < -halfFov || angle > halfFov) return;
+
+        const correctedDist = bulletDist * Math.cos(angle);
+        const baseSpriteSize = 0.03; // Smaller base size for bullets
+        const spriteHeight = ((TILE_SIZE * viewHeight) / correctedDist) * baseSpriteSize;
+        const spriteWidth = spriteHeight;
+        const xCenter = (viewWidth/2)*(1 + angle/halfFov);
+        const yCenter = viewHeight/2;
+        const xPos = xCenter - spriteWidth/2;
+        const yPos = yCenter - spriteHeight/2;
+
+        const cx = Math.floor(xCenter);
+        if (cx >= 0 && cx < wallHits.length) {
+          if (wallHits[cx].dist < bulletDist) {
+            return;
+          }
+        }
+
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(xPos + spriteWidth/2, yPos + spriteHeight/2, spriteWidth/2, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    function gameLoop() {
+      updateGame();
+      renderGame();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>

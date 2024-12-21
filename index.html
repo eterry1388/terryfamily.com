@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terry Family</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      background: #222;
+      font-family: sans-serif;
+      color: #fff;
+    }
+
+    header {
+      width: 100%;
+      background: #333;
+      padding: 10px 0;
+      text-align: center;
+      font-size: 1.5em;
+      position: fixed;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 30px;
+      width: 90%;
+      max-width: 1200px;
+      margin-top: 80px; /* Adjust for header height */
+    }
+
+    .tile {
+      background: #333;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .tile:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .tile img {
+      width: 100%;
+      height: 180px; /* Set a fixed height to make images look the same ratio */
+      object-fit: cover; /* Ensures the image covers the area while maintaining aspect ratio */
+      display: block;
+    }
+
+    .tile-title {
+      padding: 10px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    .tile-creator {
+      padding: 5px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.5);
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+
+<body>
+  <header>Terry Family</header>
+  <div class="container" id="gameContainer"></div>
+
+  <script>
+    const games = [
+      {
+        title: "Turtle Dash",
+        image: "assets/turtle-dash.png",
+        link: "turtle-dash",
+        creator: "Katelyn"
+      },
+      {
+        title: "Tank",
+        image: "assets/tank.png",
+        link: "tank",
+        creator: "Andrew"
+      },
+      {
+        title: "Tagmania",
+        image: "assets/tagmania.png",
+        link: "tagmania",
+        creator: "Eric"
+      },
+      {
+        title: "Shooter",
+        image: "assets/shooter.png",
+        link: "shooter",
+        creator: "Eric"
+      },
+      {
+        title: "Particles",
+        image: "assets/particles.png",
+        link: "particles",
+        creator: "Eric"
+      },
+      {
+        title: "Turkey Hunt",
+        image: "assets/turkey-hunt.png",
+        link: "turkey-hunt",
+        creator: "Eric"
+      },
+      {
+        title: "Turtle Invader",
+        image: "assets/turtle-invader.png",
+        link: "turtle-invader",
+        creator: "Carter"
+      },
+      {
+        title: "Math Facts",
+        image: "assets/math-facts.png",
+        link: "math-facts",
+        creator: "Aaron"
+      },
+      {
+        title: "Guess the Number",
+        image: "assets/guess-the-number.png",
+        link: "guess-the-number",
+        creator: "Katelyn"
+      }
+    ];
+
+    const container = document.getElementById('gameContainer');
+
+    games.forEach(game => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.onclick = () => location.href = game.link;
+
+      const img = document.createElement('img');
+      img.src = game.image;
+      img.alt = game.title;
+
+      const title = document.createElement('div');
+      title.className = 'tile-title';
+      title.textContent = game.title;
+
+      const creator = document.createElement('div');
+      creator.className = 'tile-creator';
+      creator.textContent = `Created by: ${game.creator}`;
+
+      tile.appendChild(img);
+      tile.appendChild(title);
+      tile.appendChild(creator);
+      container.appendChild(tile);
+    });
+  </script>
+</body>
+</html>

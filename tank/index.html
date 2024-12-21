@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Demo</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    #minimap {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: 1px solid #ccc;
+      width: 200px;
+      height: 200px;
+      background-color: rgba(255, 255, 255, 0.8);
+    }
+    #upgrades {
+      position: absolute;
+      bottom: 100px; /* Moved higher up to make space for level bar */
+      left: 10px;
+      border: 2px solid #000; /* Changed border color and width */
+      width: 200px; /* Adjusted width */
+      height: auto; /* Adjusted height to fit content */
+      background-color: rgba(0, 0, 0, 0.8); /* Changed background color */
+      padding: 15px; /* Adjusted padding */
+      box-sizing: border-box;
+      border-radius: 10px; /* Added border radius */
+      color: #fff; /* Changed text color */
+    }
+    #upgrades h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px; /* Adjusted font size */
+      text-align: center; /* Centered text */
+    }
+    #upgrades button {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px; /* Adjusted margin */
+      padding: 10px; /* Adjusted padding */
+      font-size: 16px; /* Adjusted font size */
+      background-color: #444; /* Changed button background color */
+      color: #fff; /* Changed button text color */
+      border: none; /* Removed button border */
+      border-radius: 5px; /* Added border radius */
+      cursor: pointer; /* Added cursor pointer */
+    }
+    #upgrades button:hover {
+      background-color: #666; /* Added hover effect */
+    }
+    #upgrades .upgrade-count {
+      font-size: 14px; /* Adjusted font size */
+      text-align: right;
+    }
+    #levelBarContainer {
+      position: absolute;
+      bottom: 50px; /* Moved the level bar up */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 20px;
+      background-color: #ccc;
+      border: 2px solid #000;
+      border-radius: 10px;
+      position: relative; /* Added to position the lines */
+    }
+    #levelBar {
+      width: 0;
+      height: 100%;
+      background-color: #00FF00;
+      border-radius: 10px;
+    }
+    .level-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background-color: #000;
+    }
+    .line-1 {
+      left: 20%;
+    }
+    .line-2 {
+      left: 40%;
+    }
+    .line-3 {
+      left: 60%;
+    }
+    .line-4 {
+      left: 80%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myCanvas"></canvas>
+  <canvas id="minimap"></canvas>
+  <div id="upgrades">
+    <h3>Upgrades</h3>
+    <button id="speedButton" onclick="upgradeSpeed()">Speed <span class="upgrade-count" id="speedCount">0</span></button>
+    <button id="bulletSizeButton" onclick="upgradeBulletSize()">Bullet Size <span class="upgrade-count" id="bulletSizeCount">0</span></button>
+    <button id="bulletSpeedButton" onclick="upgradeBulletSpeed()">Bullet Speed <span class="upgrade-count" id="bulletSpeedCount">0</span></button>
+    <button id="reloadTimeButton" onclick="upgradeReloadTime()">Reload Time <span class="upgrade-count" id="reloadTimeCount">0</span></button> <!-- Added reload button -->
+  </div>
+  <div id="levelBarContainer">
+    <div id="levelBar"></div>
+    <div class="level-line line-1"></div>
+    <div class="level-line line-2"></div>
+    <div class="level-line line-3"></div>
+    <div class="level-line line-4"></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('myCanvas');
+    const minimap = document.getElementById('minimap');
+    const levelBar = document.getElementById('levelBar');
+    // Set canvas size to match window size
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    minimap.width = 200;
+    minimap.height = 200;
+    const ctx = canvas.getContext('2d');
+    const minimapCtx = minimap.getContext('2d');
+    
+    // Tank position and rotation
+    let tank1X = canvas.width / 2 - 25; // Center horizontally in the canvas
+    let tank1Y = canvas.height / 2 - 25; // Center vertically in the canvas
+    const tank1Size = 50;
+    let targetX = tank1X;
+    let targetY = tank1Y;
+    let speed = 2;
+    let rotation = -Math.PI / 2; // Start pointing up
+
+    // Tank two position and rotation
+    let tank2X = tank1X;
+    let tank2Y = tank1Y;
+    const tank2Size = 50;
+    let target2X = tank2X;
+    let target2Y = tank2Y;
+    let speed2 = 2;
+    let rotation2 = -Math.PI / 2; // Start pointing up
+    let isTankTwo = false; // Flag to check if tank1 has turned into tank2
+
+    // Bullets
+    const bullets = [];
+    let bulletSize = 7;
+    let bulletSpeed = 5;
+    let reloadTime = 1; // Added reload time
+    let canShoot = true; // Added flag to control shooting
+
+    // Random starting positions for the green triangles on the minimap
+    const triangles = Array.from({ length: 5 }, () => ({
+      x: Math.random() * minimap.width * 10,
+      y: Math.random() * minimap.height * 10,
+      hits: 0,
+      driftSpeedX: (Math.random() - 0.5) * 0.5,
+      driftSpeedY: (Math.random() - 0.5) * 0.5,
+      rotation: 0,
+      rotationSpeed: (Math.random() - 0.5) * 0.01
+    }));
+
+    // Random starting positions for the light blue squares on the minimap
+    const squares = Array.from({ length: 5 }, () => ({
+      x: Math.random() * minimap.width * 10,
+      y: Math.random() * minimap.height * 10,
+      hits: 0,
+      driftSpeedX: (Math.random() - 0.5) * 0.5,
+      driftSpeedY: (Math.random() - 0.5) * 0.5,
+      rotation: 0,
+      rotationSpeed: (Math.random() - 0.5) * 0.01
+    }));
+
+    // Upgrade counts
+    let speedCount = 0;
+    let bulletSizeCount = 0;
+    let bulletSpeedCount = 0;
+    let reloadTimeCount = 0;
+
+    // World boundaries
+    const worldWidth = 3000;
+    const worldHeight = 3000;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function drawGrid() {
+      const gridSize = 50;
+      ctx.strokeStyle = '#cccccc';
+      for (let x = -offsetX % gridSize; x < canvas.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = -offsetY % gridSize; y < canvas.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawTank() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      minimapCtx.clearRect(0, 0, minimap.width, minimap.height);
+      
+      // Draw grid
+      drawGrid();
+
+      // Save the current context state
+      ctx.save();
+      minimapCtx.save();
+      
+      // Draw bullets
+      ctx.fillStyle = '#FF0000';
+      minimapCtx.fillStyle = '#FF0000';
+      bullets.forEach(bullet => {
+        ctx.beginPath();
+        ctx.arc(bullet.x - offsetX, bullet.y - offsetY, bulletSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        minimapCtx.beginPath();
+        minimapCtx.arc(bullet.x / 10, bullet.y / 10, bulletSize / 10, 0, Math.PI * 2);
+        minimapCtx.fill();
+      });
+
+      if (!isTankTwo) {
+        // Move to tank center, rotate, then draw
+        ctx.translate(tank1X - offsetX + tank1Size/2, tank1Y - offsetY + tank1Size/2);
+        ctx.rotate(rotation);
+        
+        // Draw the tank body centered at origin
+        ctx.fillStyle = '#8B0000';
+        ctx.beginPath();
+        ctx.roundRect(-tank1Size/2, -tank1Size/2, tank1Size, tank1Size, 10);
+        ctx.fill();
+        
+        // Draw a small gray turret on the front
+        ctx.fillStyle = '#808080';
+        ctx.beginPath();
+        ctx.rect(tank1Size/2, -15, 10, 30);
+        ctx.fill();
+        
+        // Restore the context state
+        ctx.restore();
+      } else {
+        // Move to tank two center, rotate, then draw
+        ctx.translate(tank2X - offsetX + tank2Size/2, tank2Y - offsetY + tank2Size/2);
+        ctx.rotate(rotation2);
+        
+        // Draw the tank two body centered at origin
+        ctx.fillStyle = '#00008B';
+        ctx.beginPath();
+        ctx.roundRect(-tank2Size/2, -tank2Size/2, tank2Size, tank2Size, 10);
+        ctx.fill();
+        
+        // Draw a small gray turret on the front
+        ctx.fillStyle = '#808080';
+        ctx.beginPath();
+        ctx.rect(tank2Size/2, -15, 10, 30);
+        ctx.fill();
+        
+        // Restore the context state
+        ctx.restore();
+      }
+
+      // Draw green triangles in random spots in the world
+      triangles.forEach(triangle => {
+        ctx.save();
+        ctx.translate(triangle.x - offsetX, triangle.y - offsetY);
+        ctx.rotate(triangle.rotation);
+        ctx.fillStyle = '#00FF00';
+        const triangleSize = 50;
+        ctx.beginPath();
+        ctx.moveTo(0, -triangleSize / 2);
+        ctx.lineTo(-triangleSize / 2, triangleSize / 2);
+        ctx.lineTo(triangleSize / 2, triangleSize / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw a small dark green rectangle under the triangle as the health bar
+        ctx.fillStyle = '#006400';
+        if (triangle.hits === 0) {
+          ctx.fillRect(-triangleSize / 8, triangleSize / 2, triangleSize / 4, 5); // Centered health bar
+        } else {
+          ctx.fillRect(-triangleSize / 16, triangleSize / 2, triangleSize / 8, 5); // Centered health bar
+        }
+        ctx.restore();
+      });
+
+      // Draw light blue squares in random spots in the world
+      squares.forEach(square => {
+        ctx.save();
+        ctx.translate(square.x - offsetX, square.y - offsetY);
+        ctx.rotate(square.rotation);
+        ctx.fillStyle = '#ADD8E6';
+        const squareSize = 50;
+        ctx.beginPath();
+        ctx.rect(-squareSize / 2, -squareSize / 2, squareSize, squareSize);
+        ctx.fill();
+
+        // Draw a small dark blue rectangle under the square as the health bar
+        ctx.fillStyle = '#00008B';
+        if (square.hits === 0) {
+          ctx.fillRect(-squareSize / 8, squareSize / 2, squareSize / 4, 5); // Centered health bar
+        } else {
+          ctx.fillRect(-squareSize / 16, squareSize / 2, squareSize / 8, 5); // Centered health bar
+        }
+        ctx.restore();
+      });
+      
+      // Draw the tank on the minimap
+      minimapCtx.fillStyle = '#8B0000';
+      minimapCtx.beginPath();
+      minimapCtx.arc(tank1X / 10, tank1Y / 10, tank1Size / 20, 0, Math.PI * 2);
+      minimapCtx.fill();
+      
+      // Draw the tank two on the minimap
+      minimapCtx.fillStyle = '#00008B';
+      minimapCtx.beginPath();
+      minimapCtx.arc(tank2X / 10, tank2Y / 10, tank2Size / 20, 0, Math.PI * 2);
+      minimapCtx.fill();
+      
+      // Draw the green triangles on the minimap
+      minimapCtx.fillStyle = '#00FF00';
+      triangles.forEach(triangle => {
+        minimapCtx.beginPath();
+        minimapCtx.arc(triangle.x / 10, triangle.y / 10, 50 / 20, 0, Math.PI * 2);
+        minimapCtx.fill();
+      });
+
+      // Draw the light blue squares on the minimap
+      minimapCtx.fillStyle = '#ADD8E6';
+      squares.forEach(square => {
+        minimapCtx.beginPath();
+        minimapCtx.rect(square.x / 10 - 2.5, square.y / 10 - 2.5, 5, 5); // Draw small squares on the minimap
+        minimapCtx.fill();
+      });
+    }
+
+    function update() {
+      // Calculate distance to target for tank one
+      let dx = targetX - tank1X;
+      let dy = targetY - tank1Y;
+      
+      // Calculate distance
+      let distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > speed) {
+        // Calculate angle to target
+        rotation = Math.atan2(dy, dx);
+        
+        // Normalize the direction and multiply by speed
+        let newTank1X = tank1X + (dx / distance) * speed;
+        let newTank1Y = tank1Y + (dy / distance) * speed;
+
+        tank1X = newTank1X;
+        tank1Y = newTank1Y;
+      } else {
+        // If we're very close, just snap to target
+        tank1X = targetX;
+        tank1Y = targetY;
+      }
+
+      // Calculate distance to target for tank two
+      let dx2 = target2X - tank2X;
+      let dy2 = target2Y - tank2Y;
+      
+      // Calculate distance
+      let distance2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+      
+      if (distance2 > speed2) {
+        // Calculate angle to target
+        rotation2 = Math.atan2(dy2, dx2);
+        
+        // Normalize the direction and multiply by speed
+        let newTank2X = tank2X + (dx2 / distance2) * speed2;
+        let newTank2Y = tank2Y + (dy2 / distance2) * speed2;
+
+        tank2X = newTank2X;
+        tank2Y = newTank2Y;
+      } else {
+        // If we're very close, just snap to target
+        tank2X = target2X;
+        tank2Y = target2Y;
+      }
+
+      // Check for collision with the triangles
+      triangles.forEach(triangle => {
+        let triangleDistX = tank1X - triangle.x;
+        let triangleDistY = tank1Y - triangle.y;
+        let triangleDistance = Math.sqrt(triangleDistX * triangleDistX + triangleDistY * triangleDistY);
+        if (triangleDistance < (tank1Size / 2 + 25)) { // tank1Size / 2 is half the tank size, 25 is half the triangle size
+          // Move the triangle to a new random position in the world
+          triangle.x = Math.random() * minimap.width * 10;
+          triangle.y = Math.random() * minimap.height * 10;
+          triangle.hits = 0; // Reset hit counter
+          // Fill 1/5 of the level bar with orange
+          levelBar.style.width = Math.min(100, parseFloat(levelBar.style.width) + 20) + '%'; // Increase by 1/5
+          levelBar.style.backgroundColor = '#FFA500'; // Change level bar color to orange
+          if (parseFloat(levelBar.style.width) >= 100) {
+            isTankTwo = true; // Turn tank1 into tank2 when level bar is full
+          }
+        }
+      });
+
+      // Check for collision with the squares
+      squares.forEach(square => {
+        let squareDistX = tank1X - square.x;
+        let squareDistY = tank1Y - square.y;
+        let squareDistance = Math.sqrt(squareDistX * squareDistX + squareDistY * squareDistY);
+               if (squareDistance < (tank1Size / 2 + 25)) { // tank1Size / 2 is half the tank size, 25 is half the square size
+          // Move the square to a new random position in the world
+          square.x = Math.random() * minimap.width * 10;
+          square.y = Math.random() * minimap.height * 10;
+          square.hits = 0; // Reset hit counter
+          // Fill 1/5 of the level bar with orange
+          levelBar.style.width = Math.min(100, parseFloat(levelBar.style.width) + 20) + '%'; // Increase by 1/5
+          levelBar.style.backgroundColor = '#FFA500'; // Change level bar color to orange
+          if (parseFloat(levelBar.style.width) >= 100) {
+            isTankTwo = true; // Turn tank1 into tank2 when level bar is full
+          }
+        }
+      });
+
+      // Update bullets
+      bullets.forEach((bullet, index) => {
+        bullet.x += bullet.vx;
+        bullet.y += bullet.vy;
+
+        // Check for collision with the triangles
+        triangles.forEach(triangle => {
+          let triangleDistX = bullet.x - triangle.x;
+          let triangleDistY = bullet.y - triangle.y;
+          let triangleDistance = Math.sqrt(triangleDistX * triangleDistX + triangleDistY * triangleDistY);
+          if (triangleDistance < (bulletSize + 25)) { // bulletSize is the bullet radius, 25 is half the triangle size
+            triangle.hits += 1; // Increment hit counter
+            bullets.splice(index, 1); // Remove the bullet
+            if (triangle.hits >= 2) { // Check if the triangle has been hit twice
+              // Move the triangle to a new random position in the world
+              triangle.x = Math.random() * minimap.width * 10;
+              triangle.y = Math.random() * minimap.height * 10;
+              triangle.hits = 0; // Reset hit counter
+              // Fill 1/5 of the level bar with orange
+              levelBar.style.width = Math.min(100, parseFloat(levelBar.style.width) + 20) + '%'; // Increase by 1/5
+              levelBar.style.backgroundColor = '#FFA500'; // Change level bar color to orange
+              if (parseFloat(levelBar.style.width) >= 100) {
+                isTankTwo = true; // Turn tank1 into tank2 when level bar is full
+              }
+            }
+          }
+        });
+
+        // Check for collision with the squares
+        squares.forEach(square => {
+          let squareDistX = bullet.x - square.x;
+          let squareDistY = bullet.y - square.y;
+          let squareDistance = Math.sqrt(squareDistX * squareDistX + squareDistY * squareDistY);
+          if (squareDistance < (bulletSize + 25)) { // bulletSize is the bullet radius, 25 is half the square size
+            square.hits += 1; // Increment hit counter
+            bullets.splice(index, 1); // Remove the bullet
+            if (square.hits >= 2) { // Check if the square has been hit twice
+              // Move the square to a new random position in the world
+              square.x = Math.random() * minimap.width * 10;
+              square.y = Math.random() * minimap.height * 10;
+              square.hits = 0; // Reset hit counter
+              // Fill 1/5 of the level bar with orange
+              levelBar.style.width = Math.min(100, parseFloat(levelBar.style.width) + 20) + '%'; // Increase by 1/5
+              levelBar.style.backgroundColor = '#FFA500'; // Change level bar color to orange
+              if (parseFloat(levelBar.style.width) >= 100) {
+                isTankTwo = true; // Turn tank1 into tank2 when level bar is full
+              }
+            }
+          }
+        });
+      });
+
+      // Update triangle positions to drift slowly
+      triangles.forEach(triangle => {
+        triangle.x += triangle.driftSpeedX;
+        triangle.y += triangle.driftSpeedY;
+        triangle.rotation += triangle.rotationSpeed;
+
+        // Keep the triangle within the world bounds
+        if (triangle.x < 0 || triangle.x > minimap.width * 10) {
+          triangle.driftSpeedX *= -1;
+        }
+        if (triangle.y < 0 || triangle.y > minimap.height * 10) {
+          triangle.driftSpeedY *= -1;
+        }
+      });
+
+      // Update square positions to drift slowly
+      squares.forEach(square => {
+        square.x += square.driftSpeedX;
+        square.y += square.driftSpeedY;
+        square.rotation += square.rotationSpeed;
+
+        // Keep the square within the world bounds
+        if (square.x < 0 || square.x > minimap.width * 10) {
+          square.driftSpeedX *= -1;
+        }
+        if (square.y < 0 || square.y > minimap.height * 10) {
+          square.driftSpeedY *= -1;
+        }
+      });
+
+      // Update canvas offset to follow the tank
+      offsetX = Math.min(Math.max(tank1X - canvas.width / 2, 0), worldWidth - canvas.width);
+      offsetY = Math.min(Math.max(tank1Y - canvas.height / 2, 0), worldHeight - canvas.height);
+    }
+
+    function gameLoop() {
+      update();
+      drawTank();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Initial draw and start game loop
+    gameLoop();
+
+    // Handle mouse movement
+    window.addEventListener('mousemove', (e) => {
+      // Update target position to mouse cursor
+      targetX = e.clientX - tank1Size / 2 + window.scrollX + offsetX;
+      targetY = e.clientY - tank1Size / 2 + window.scrollY + offsetY;
+      
+      // Keep target within world bounds
+      targetX = Math.max(0, Math.min(worldWidth - tank1Size, targetX));
+      targetY = Math.max(0, Math.min(worldHeight - tank1Size, targetY));
+      
+      // Update rotation to face the mouse cursor
+      let dx = targetX - (tank1X + tank1Size / 2);
+      let dy = targetY - (tank1Y + tank1Size / 2);
+      rotation = Math.atan2(dy, dx);
+    });
+
+    // Fire bullet when space bar is pressed
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && canShoot) {
+        const bulletX = tank1X + tank1Size / 2 + Math.cos(rotation) * tank1Size / 2;
+        const bulletY = tank1Y + tank1Size / 2 + Math.sin(rotation) * tank1Size / 2;
+        const bulletVx = Math.cos(rotation) * bulletSpeed;
+        const bulletVy = Math.sin(rotation) * bulletSpeed;
+        bullets.push({ x: bulletX, y: bulletY, vx: bulletVx, vy: bulletVy });
+        canShoot = false; // Prevent shooting until reload time has passed
+        setTimeout(() => {
+          canShoot = true; // Allow shooting again after reload time
+        }, 1000 / reloadTime);
+      }
+    });
+
+    // Resize canvas when window is resized
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawTank();
+    });
+
+    // Upgrade functions
+    function upgradeSpeed() {
+      if (speedCount < 10) {
+        speed += 0.5;
+        speedCount += 1;
+        document.getElementById('speedCount').innerText = speedCount;
+        if (speedCount === 10) {
+          document.getElementById('speedButton').disabled = true;
+        }
+      }
+    }
+
+    function upgradeBulletSize() {
+      if (bulletSizeCount < 10) {
+        bulletSize += 1;
+        bulletSizeCount += 1;
+        document.getElementById('bulletSizeCount').innerText = bulletSizeCount;
+        if (bulletSizeCount === 10) {
+          document.getElementById('bulletSizeButton').disabled = true;
+        }
+      }
+    }
+
+    function upgradeBulletSpeed() {
+      if (bulletSpeedCount < 10) {
+        bulletSpeed += 0.8;
+        bulletSpeedCount += 1;
+        document.getElementById('bulletSpeedCount').innerText = bulletSpeedCount;
+        if (bulletSpeedCount === 10) {
+          document.getElementById('bulletSpeedButton').disabled = true;
+        }
+      }
+    }
+
+    function upgradeReloadTime() { // Added upgrade function for reload time
+      if (reloadTimeCount < 10) {
+        reloadTime += 0.9;
+        reloadTimeCount += 1;
+        document.getElementById('reloadTimeCount').innerText = reloadTimeCount;
+        if (reloadTimeCount === 10) {
+          document.getElementById('reloadTimeButton').disabled = true;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
