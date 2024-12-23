@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MIDI Visualizer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+
+    body {
+      background: #2b2b2b;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 15px;
+      border-radius: 8px;
+      z-index: 999;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #controls input[type="file"] {
+      background: #444;
+      color: #fff;
+      border: none;
+      padding: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #controls button {
+      background: #666;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #controls button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    #tempoRange, #zoomRange {
+      cursor: pointer;
+    }
+
+    #tempoDisplay, #zoomDisplay {
+      margin-left: 5px;
+      font-weight: bold;
+      width: 60px;
+      text-align: right;
+      display: inline-block;
+    }
+
+    #labelsContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 60px;
+      bottom: 0;
+      background: #202020;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      border-right: 1px solid #555;
+    }
+
+    #labelsCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    #pianoRollContainer {
+      position: fixed;
+      top: 0;
+      left: 60px;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      background: #1e1e1e;
+    }
+
+    #pianoRollCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: #1e1e1e;
+    }
+
+    #trackList {
+      position: fixed;
+      top: 110px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+
+    #miniPianoRolls {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 0.8em;
+      max-width: 400px;
+      max-height: 800px;
+      overflow-y: auto;
+    }
+
+    /* Flash effect for when a track is playing a note */
+    .flashing {
+      box-shadow: 0 0 10px 2px #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <input type="file" id="fileInput" accept=".mid" />
+    <button id="playButton" disabled>Play</button>
+    <button id="pauseButton" disabled>Pause</button>
+    <button id="stopButton" disabled>Stop</button>
+
+    <label for="tempoRange">Tempo:</label>
+    <input type="range" id="tempoRange" min="20" max="300" value="120" />
+    <span id="tempoDisplay">120</span>
+
+    <label for="zoomRange">Zoom:</label>
+    <input type="range" id="zoomRange" min="5" max="600" value="100" />
+    <span id="zoomDisplay">100</span>
+
+    <button id="backButton">Back to Game</button>
+  </div>
+
+  <div id="trackList"></div>
+
+  <div id="labelsContainer">
+    <canvas id="labelsCanvas"></canvas>
+  </div>
+
+  <div id="pianoRollContainer">
+    <canvas id="pianoRollCanvas"></canvas>
+  </div>
+
+  <div id="miniPianoRolls"></div>
+
+  <script src="https://unpkg.com/tone"></script>
+  <script src="https://unpkg.com/@tonejs/midi"></script>
+  <script>
+    const lineAdjustment = 12;
+
+    const fileInput = document.getElementById("fileInput");
+    const playButton = document.getElementById("playButton");
+    const pauseButton = document.getElementById("pauseButton");
+    const stopButton = document.getElementById("stopButton");
+    const tempoRange = document.getElementById("tempoRange");
+    const tempoDisplay = document.getElementById("tempoDisplay");
+    const zoomRange = document.getElementById("zoomRange");
+    const zoomDisplay = document.getElementById("zoomDisplay");
+    const pianoRollCanvas = document.getElementById("pianoRollCanvas");
+    const labelsCanvas = document.getElementById("labelsCanvas");
+    const trackList = document.getElementById("trackList");
+    const miniPianoRolls = document.getElementById("miniPianoRolls");
+    const backButton = document.getElementById("backButton");
+
+    const pianoRollCtx = pianoRollCanvas.getContext("2d");
+    const labelsCtx = labelsCanvas.getContext("2d");
+
+    let midi = null;
+    let originalBpm = 120;
+    let tempo = 120;
+    let isPlaying = false;
+    let animationId = null;
+
+    let noteEvents = [];
+    let maxTime = 0;
+    let minNote = Infinity;
+    let maxNote = -Infinity;
+    let pixelsPerSecond = 100;
+    let pixelsPerNote = 6;
+    let trackColors = [];
+    let trackVisibility = [];
+    let synths = [];
+    let trackColorBoxes = [];
+
+    // We'll store the real-time position in the Tone.Transport,
+    // and convert it to "musical time" for drawing.
+    function getMusicTime() {
+      // ratio = originalBpm / tempo
+      // If ratio < 1 => playback is faster, so we move through musical time quickly
+      const ratio = originalBpm / tempo;
+      // Tone.Transport.seconds is how many real seconds have passed in playback
+      // musicTime = realTime / ratio
+      return Tone.Transport.seconds / ratio;
+    }
+
+    // We also need to handle the scheduling of notes in real-time
+    // scheduleTime = noteTimeInMusic * ratio
+    // ratio = originalBpm / tempo => realTime = note.time * ratio
+    function getScheduleTime(noteTimeInMusic) {
+      const ratio = originalBpm / tempo;
+      return noteTimeInMusic * ratio;
+    }
+
+    function resizeCanvases() {
+      pianoRollCanvas.width = window.innerWidth - 60;
+      pianoRollCanvas.height = window.innerHeight;
+      labelsCanvas.width = 60;
+      labelsCanvas.height = window.innerHeight;
+    }
+
+    window.addEventListener("resize", () => {
+      resizeCanvases();
+      drawEverything();
+    });
+
+    // Generate or retrieve a color for each track index
+    function getTrackColor(index) {
+      if (trackColors[index]) return trackColors[index];
+      const hue = (index * 47) % 360;
+      trackColors[index] = `hsl(${hue}, 70%, 50%)`;
+      return trackColors[index];
+    }
+
+    // Convert MIDI note to a note name
+    function midiToNoteName(midiNumber) {
+      const noteNames = ["C", "C#", "D", "D#", "E", "F",
+                         "F#", "G", "G#", "A", "A#", "B"];
+      const octave = Math.floor(midiNumber / 12) - 1;
+      const noteIndex = midiNumber % 12;
+      return noteNames[noteIndex] + octave;
+    }
+
+    // Parse the MIDI file and store relevant note data
+    function parseMidi(midiData) {
+      noteEvents = [];
+      minNote = Infinity;
+      maxNote = -Infinity;
+      maxTime = 0;
+      trackColors = [];
+      trackVisibility = [];
+      synths.forEach(s => s.dispose());
+      synths = [];
+      trackColorBoxes = [];
+
+      if (midiData.header.tempos && midiData.header.tempos.length > 0) {
+        originalBpm = midiData.header.tempos[0].bpm;
+      } else {
+        originalBpm = 120;
+      }
+
+      midiData.tracks.forEach((track, trackIndex) => {
+        if (track.notes.length === 0) return;
+
+        const synth = new Tone.PolySynth().toDestination();
+        synths.push(synth);
+        trackVisibility[trackIndex] = true;
+
+        track.notes.forEach(note => {
+          // note.time is in seconds (musical time at original BPM),
+          // we keep it as "music time" for drawing and scheduling
+          noteEvents.push({
+            trackIndex: trackIndex,
+            time: note.time,
+            duration: note.duration,
+            midi: note.midi
+          });
+          if (note.midi < minNote) minNote = note.midi;
+          if (note.midi > maxNote) maxNote = note.midi;
+          if (note.time + note.duration > maxTime) {
+            maxTime = note.time + note.duration;
+          }
+        });
+      });
+
+      noteEvents.sort((a, b) => a.time - b.time);
+    }
+
+    // Draw the note labels on the left side
+    function drawLabels() {
+      labelsCtx.clearRect(0, 0, labelsCanvas.width, labelsCanvas.height);
+      const visibleHeight = pianoRollCanvas.height;
+      const totalNotes = maxNote - minNote + 1;
+
+      for (let m = minNote; m <= maxNote; m++) {
+        const y = (maxNote - m) * pixelsPerNote;
+        if (y < 0 || y > visibleHeight) continue;
+        labelsCtx.fillStyle = "#ccc";
+        labelsCtx.font = "10px sans-serif";
+        labelsCtx.fillText(midiToNoteName(m), 3, y + 10);
+      }
+    }
+
+    // Main drawing for the piano roll
+    function drawPianoRoll() {
+      pianoRollCtx.clearRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
+      const visibleWidth = pianoRollCanvas.width;
+      const visibleHeight = pianoRollCanvas.height;
+
+      // The current musical time based on transport
+      const musicTime = getMusicTime();
+
+      // Draw measure lines
+      pianoRollCtx.strokeStyle = "rgba(255,255,255,0.2)";
+      pianoRollCtx.lineWidth = 1;
+
+      // We compute time in seconds for measure lines based on 4 beats per measure
+      // and the current "view" BPM is originalBpm, but for drawing we consider
+      // them in "music seconds" (since note.time is in music seconds).
+      const secondsPerBeat = 60 / originalBpm;
+      const beatsPerMeasure = 4;
+      const measureDurationInMusicSec = beatsPerMeasure * secondsPerBeat;
+      const totalMeasures = Math.floor(maxTime / measureDurationInMusicSec) + 2;
+
+      for (let i = 0; i < totalMeasures; i++) {
+        const measureTime = i * measureDurationInMusicSec; // music seconds
+        // X position in the canvas
+        const x = (measureTime - musicTime) * pixelsPerSecond + (visibleWidth / 2);
+        if (x < 0 || x > visibleWidth) continue;
+
+        pianoRollCtx.beginPath();
+        pianoRollCtx.moveTo(x, 0);
+        pianoRollCtx.lineTo(x, visibleHeight);
+        pianoRollCtx.stroke();
+      }
+
+      // Draw each note
+      noteEvents.forEach(note => {
+        if (!trackVisibility[note.trackIndex]) return;
+        const color = getTrackColor(note.trackIndex);
+
+        // note.time is in music seconds
+        const noteStart = note.time;
+        const noteEnd = note.time + note.duration;
+
+        // Convert to canvas X
+        const x = (noteStart - musicTime) * pixelsPerSecond + (visibleWidth / 2);
+        const width = (noteEnd - noteStart) * pixelsPerSecond;
+
+        const pitch = note.midi;
+        const y = (maxNote - pitch) * pixelsPerNote;
+        const height = pixelsPerNote - 1;
+
+        // If it's offscreen, skip
+        if (x + width < 0 || x > visibleWidth) return;
+        pianoRollCtx.fillStyle = color;
+        pianoRollCtx.fillRect(x, y, width, height);
+      });
+
+      // Draw current time line
+      pianoRollCtx.strokeStyle = "red";
+      pianoRollCtx.lineWidth = 2;
+      pianoRollCtx.beginPath();
+      const currentLineX = (visibleWidth / 2) - lineAdjustment;
+      pianoRollCtx.moveTo(currentLineX, 0);
+      pianoRollCtx.lineTo(currentLineX, visibleHeight);
+      pianoRollCtx.stroke();
+    }
+
+    function drawEverything() {
+      drawLabels();
+      drawPianoRoll();
+    }
+
+    function animate() {
+      if (!isPlaying) {
+        cancelAnimationFrame(animationId);
+        return;
+      }
+      drawEverything();
+      animationId = requestAnimationFrame(animate);
+    }
+
+    async function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // If something is currently playing, stop it first
+      stopMidi();
+
+      const arrayBuffer = await file.arrayBuffer();
+      midi = new Midi(arrayBuffer);
+
+      parseMidi(midi);
+      populateTrackListAndMiniRolls();
+      resizeCanvases();
+      drawEverything();
+
+      // Set the tempo to the tempo configured in the midi
+      tempo = Math.round(originalBpm);
+      tempoRange.value = tempo;
+      tempoDisplay.textContent = tempo;
+
+      playButton.disabled = false;
+      pauseButton.disabled = false;
+      stopButton.disabled = false;
+    }
+
+    function populateTrackListAndMiniRolls() {
+      trackList.innerHTML = "";
+      miniPianoRolls.innerHTML = "";
+
+      midi.tracks.forEach((track, i) => {
+        if (track.notes.length === 0) return;
+        const div = document.createElement("div");
+        div.textContent = `Track ${i + 1}: ${track.name || "(Unnamed)"} | Notes: ${track.notes.length}`;
+        trackList.appendChild(div);
+      });
+
+      // Button to toggle all tracks
+      const toggleAllButton = document.createElement("button");
+      toggleAllButton.textContent = "Toggle All On/Off";
+      toggleAllButton.style.marginBottom = "10px";
+      miniPianoRolls.appendChild(toggleAllButton);
+
+      toggleAllButton.addEventListener("click", () => {
+        const allVisible = trackVisibility.every(v => v);
+        trackVisibility.forEach((_, i) => {
+          trackVisibility[i] = !allVisible;
+          synths[i].volume.value = allVisible ? -Infinity : 0;
+          trackColorBoxes[i].style.opacity = allVisible ? 0.5 : 1;
+        });
+        drawEverything();
+      });
+
+      midi.tracks.forEach((track, i) => {
+        if (track.notes.length === 0) return;
+        const roll = document.createElement("div");
+        roll.style.marginBottom = "6px";
+        roll.style.display = "flex";
+        roll.style.alignItems = "center";
+        roll.style.cursor = "pointer";
+        roll.dataset.trackIndex = i;
+
+        const colorBox = document.createElement("div");
+        colorBox.style.width = "12px";
+        colorBox.style.height = "12px";
+        colorBox.style.backgroundColor = getTrackColor(i);
+        colorBox.style.marginRight = "6px";
+        roll.appendChild(colorBox);
+
+        trackColorBoxes[i] = colorBox;
+
+        const rollText = document.createElement("span");
+        rollText.textContent = `Track ${i + 1}: ${track.notes.length} notes`;
+        roll.appendChild(rollText);
+        miniPianoRolls.appendChild(roll);
+
+        roll.addEventListener("click", () => {
+          const trackIndex = +roll.dataset.trackIndex;
+          trackVisibility[trackIndex] = !trackVisibility[trackIndex];
+          if (trackVisibility[trackIndex]) {
+            roll.style.opacity = 1;
+            synths[trackIndex].volume.value = 0;
+          } else {
+            roll.style.opacity = 0.5;
+            synths[trackIndex].volume.value = -Infinity;
+          }
+          drawEverything();
+        });
+      });
+    }
+
+    function playMidi() {
+      if (!midi) return;
+      if (isPlaying) return;
+      isPlaying = true;
+
+      Tone.Transport.bpm.value = tempo;
+      Tone.Transport.start("+0.1");
+      scheduleNotes();
+      animate();
+    }
+
+    function pauseMidi() {
+      if (!midi) return;
+      if (!isPlaying) return;
+      isPlaying = false;
+      Tone.Transport.pause();
+      cancelAnimationFrame(animationId);
+    }
+
+    function stopMidi() {
+      if (!midi && !isPlaying) return;
+      isPlaying = false;
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+      cancelAnimationFrame(animationId);
+      drawEverything();
+    }
+
+    function scheduleNotes() {
+      Tone.Transport.cancel();
+      Tone.Transport.bpm.value = tempo;
+
+      midi.tracks.forEach((track, i) => {
+        if (track.notes.length === 0) return;
+
+        track.notes.forEach(note => {
+          const scheduleTime = getScheduleTime(note.time);
+          const scheduleDuration = note.duration * (originalBpm / tempo);
+
+          Tone.Transport.schedule((time) => {
+            if (trackVisibility[i]) {
+              // Flash the color box
+              trackColorBoxes[i].classList.add("flashing");
+              setTimeout(() => {
+                trackColorBoxes[i].classList.remove("flashing");
+              }, scheduleDuration * 1000);
+
+              synths[i].triggerAttackRelease(
+                Tone.Frequency(note.midi, "midi"),
+                scheduleDuration,
+                time
+              );
+            }
+          }, scheduleTime);
+        });
+      });
+    }
+
+    // Event listeners
+    fileInput.addEventListener("change", handleFileSelect);
+    playButton.addEventListener("click", playMidi);
+    pauseButton.addEventListener("click", pauseMidi);
+    stopButton.addEventListener("click", stopMidi);
+
+    tempoRange.addEventListener("input", () => {
+      tempo = parseInt(tempoRange.value);
+      tempoDisplay.textContent = tempo;
+      if (isPlaying) {
+        Tone.Transport.bpm.value = tempo;
+      }
+    });
+
+    zoomRange.addEventListener("input", () => {
+      const val = parseInt(zoomRange.value);
+      zoomDisplay.textContent = val;
+      pixelsPerSecond = val;
+      drawEverything();
+    });
+
+    // Scroll the view with the mouse wheel
+    window.addEventListener("wheel", (e) => {
+      // We shift the 'musicTime' viewpoint by adjusting a global offset.
+      // But to keep it in sync with audio, let's instead do a minor approach:
+      // We'll do something simpler: we adjust maxTime or so?
+      // Or we can just offset the musicTime artificially with an offset.
+      // Let's define a global offset in "music seconds" that can be positive or negative.
+      // Then we can add that offset in the draw function.
+      // But for simplicity, let's not complicate. We'll do a naive approach:
+      e.preventDefault();
+      const step = e.deltaY * 0.05; // scroll in music time
+      // We shift all note times if we do this, which is messy.
+      // Alternatively, we store a global "viewTimeOffset" in music seconds.
+      // Let's define:
+      if (!window.viewTimeOffset) window.viewTimeOffset = 0;
+      window.viewTimeOffset += step;
+      // Then in getMusicTime, we subtract this offset from the transport-based music time:
+      drawEverything();
+    }, { passive: false });
+
+    // Override draw to account for the user offset in wheel
+    const originalDrawPianoRoll = drawPianoRoll;
+    drawPianoRoll = function() {
+      pianoRollCtx.clearRect(0, 0, pianoRollCanvas.width, pianoRollCanvas.height);
+      const visibleWidth = pianoRollCanvas.width;
+      const visibleHeight = pianoRollCanvas.height;
+
+      if (!window.viewTimeOffset) window.viewTimeOffset = 0;
+      const offset = window.viewTimeOffset;
+
+      const musicTime = getMusicTime() - offset;
+      pianoRollCtx.strokeStyle = "rgba(255,255,255,0.2)";
+      pianoRollCtx.lineWidth = 1;
+
+      const secondsPerBeat = 60 / originalBpm;
+      const beatsPerMeasure = 4;
+      const measureDurationInMusicSec = beatsPerMeasure * secondsPerBeat;
+      const totalMeasures = Math.floor(maxTime / measureDurationInMusicSec) + 2;
+
+      for (let i = 0; i < totalMeasures; i++) {
+        const measureTime = i * measureDurationInMusicSec;
+        const x = (measureTime - musicTime) * pixelsPerSecond + (visibleWidth / 2);
+        if (x < 0 || x > visibleWidth) continue;
+        pianoRollCtx.beginPath();
+        pianoRollCtx.moveTo(x, 0);
+        pianoRollCtx.lineTo(x, visibleHeight);
+        pianoRollCtx.stroke();
+      }
+
+      noteEvents.forEach(note => {
+        if (!trackVisibility[note.trackIndex]) return;
+        const color = getTrackColor(note.trackIndex);
+
+        const noteStart = note.time;
+        const noteEnd = note.time + note.duration;
+        const x = (noteStart - musicTime) * pixelsPerSecond + (visibleWidth / 2);
+        const width = (noteEnd - noteStart) * pixelsPerSecond;
+        const pitch = note.midi;
+        const y = (maxNote - pitch) * pixelsPerNote;
+        const height = pixelsPerNote - 1;
+        if (x + width < 0 || x > visibleWidth) return;
+        pianoRollCtx.fillStyle = color;
+        pianoRollCtx.fillRect(x, y, width, height);
+      });
+
+      pianoRollCtx.strokeStyle = "red";
+      pianoRollCtx.lineWidth = 2;
+      pianoRollCtx.beginPath();
+      const currentLineX = (visibleWidth / 2) - lineAdjustment;
+      pianoRollCtx.moveTo(currentLineX, 0);
+      pianoRollCtx.lineTo(currentLineX, visibleHeight);
+      pianoRollCtx.stroke();
+    };
+    backButton.addEventListener("click", () => {
+      const currentPath = window.location.pathname;
+      console.log(currentPath);
+      const newPath = currentPath.replace('/view.html', '/') || '/';
+      console.log(newPath);
+      window.location.href = newPath;
+    });
+
+    resizeCanvases();
+  </script>
+</body>
+</html>

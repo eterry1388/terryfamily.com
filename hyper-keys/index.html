@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hyper Keys</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #222;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    #gameCanvas {
+      display: block;
+      background: #222;
+      width: 75vw;
+      height: 100vh;
+      float: left;
+      position: relative;
+    }
+    #laneContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 75vw;
+      pointer-events: none;
+    }
+    .lane {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 121px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .lane.disabled {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .key-indicators {
+      position: absolute;
+      top: 0;
+      width: 75vw;
+      display: flex;
+      justify-content: space-between;
+      font-size: 2em;
+      color: #fff;
+      pointer-events: none;
+      user-select: none;
+      margin-top: 70px;
+    }
+    .key-indicators span {
+      flex: 1;
+      text-align: center;
+      background: #fff;
+      color: #000;
+      border: 1px solid #000;
+      border-radius: 5px;
+      margin: 0 2px;
+      transition: transform 0.1s;
+      position: relative;
+    }
+    .key-indicators span.pressed {
+      transform: translateY(5px);
+      background: #ccc;
+    }
+    .timing-help {
+      position: absolute;
+      top: -20px;
+      right: -10px;
+      font-size: 0.5em;
+      color: #fff;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+    }
+    #scoreDisplay {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      font-size: 1.5em;
+    }
+    #missedDisplay {
+      position: absolute;
+      bottom: 10px;
+      left: 150px;
+      font-size: 1.5em;
+    }
+    #songPicker {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 20vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 15px;
+      border-left: 2px solid #444;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    #songList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex: 1;
+    }
+    #songPicker li {
+      padding: 10px;
+      margin: 5px 0;
+      background: #444;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+    }
+    #songPicker li:hover {
+      background: #555;
+    }
+    .controls-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .track-selection {
+      margin-top: 10px;
+    }
+    .buttons-container {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 5px;
+      margin-top: 15px;
+    }
+    .file-upload-container {
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px;
+      font-size: 1em;
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button#visualizerButton {
+      background: #2196F3;
+    }
+    input[type="file"] {
+      background: #333;
+      color: #fff;
+      border: none;
+    }
+    .multitrack-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-top: 10px;
+    }
+    .multitrack-item label {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="laneContainer"></div>
+
+  <div class="key-indicators" id="keyIndicators">
+    <span id="key-a">A</span>
+    <span id="key-s">S</span>
+    <span id="key-d">D</span>
+    <span id="key-f">-F-</span>
+    <span id="key-g">G</span>
+    <span id="key-h">H</span>
+    <span id="key-j">-J-</span>
+    <span id="key-k">K</span>
+    <span id="key-l">L</span>
+    <span id="key-;">;</span>
+    <span id="key-'">'</span>
+  </div>
+
+  <div id="scoreDisplay">Score: 0</div>
+  <div id="missedDisplay">Missed: 0</div>
+
+  <div id="songPicker">
+    <ul id="songList"></ul>
+    <div class="controls-container">
+      <div class="file-upload-container">
+        <input type="file" id="fileInput" accept=".mid,.midi" />
+      </div>
+      <div class="track-selection">
+        <h3>Select Track(s) to PLAY</h3>
+        <div id="multitrackList" class="multitrack-list"></div>
+      </div>
+      <div class="buttons-container">
+        <button id="startButton">Start Game</button>
+        <button id="visualizerButton" onclick="window.location.href='view.html'">Visualizer</button>
+      </div>
+      <div class="difficulty-selection">
+        <h3>Select Difficulty</h3>
+        <div id="difficultyButtons"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External libraries -->
+  <script src="https://unpkg.com/tone"></script>
+  <script src="https://unpkg.com/@tonejs/midi"></script>
+  <script src="timidity.bundle.js"></script>
+
+  <script>
+    let songs = [
+      { name: "bb", defaultTracks: [17] },
+      { name: "moonlight", defaultTracks: [0] },
+      { name: "test3", defaultTracks: [0] },
+      // { name: "mj", defaultTracks: [0] },
+      // { name: "Michael Jackson - Don't Stop Till You Get Enough", defaultTracks: [11] },
+      // { name: "Red Hot Chili Peppers - Otherside", defaultTracks: [15] },
+      // { name: "Lifehouse — Hanging By a Moment", defaultTracks: [0] },
+      // { name: "Legend of Zelda - Overworld", defaultTracks: [0] },
+      // { name: "Bob Seger - Old Time Rock and Roll", defaultTracks: [3] },
+      // { name: "Lifehouse - Halfway Gone", defaultTracks: [7] },
+      // { name: "Pirates of the Caribbean - Main Theme", defaultTracks: [0] },
+      // { name: "Imagine dragons - Radioactive", defaultTracks: [0] },
+      // { name: "SailorStarlightsTransformationBGM8", defaultTracks: [7] },
+      // { name: "73561_08", defaultTracks: [2] },
+      // { name: "skyfall", defaultTracks: [0] },
+      // { name: "midi_play2", defaultTracks: [0] },
+      // { name: "clocks", defaultTracks: [6] },
+      // { name: "25248_Cristoforis-Dream", defaultTracks: [0] },
+      // { name: "All I have to give", defaultTracks: [10] },
+    ];
+
+    // If you'd like to start the MIDI from the earliest note, set this to true.
+    let skipToEarliestNote = true;
+    let currentSong = null;
+    let currentSongUrl = "";
+    let currentIsFile = false;
+    let allTracks = [];
+    let trackNotes = [];
+    let activeNotes = [];
+    let score = 0;
+    let missedNotes = 0;
+    let lastTime = 0;
+    let pitchMin = 0;
+    let pitchMax = 127;
+
+    let timidityPlayer = null;   // Timidity for MIDI
+    let isPlaying = false;
+    let noteDelay = 0.6;
+    let canvasHeightFactor = 370;
+    let currentDifficulty = 'easy';
+    let fileArrayBuffer = null;
+
+    // We'll store the decoded WAV buffer here (if it exists)
+    let wavBuffer = null;
+    let wavSource = null;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const fileInput = document.getElementById("fileInput");
+    const songList = document.getElementById('songList');
+    const multitrackList = document.getElementById('multitrackList');
+    const startButton = document.getElementById('startButton');
+    const difficultyButtons = document.getElementById('difficultyButtons');
+    const laneContainer = document.getElementById('laneContainer');
+
+    // If you want to preview user hits with a small synth:
+    const userSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+    userSynth.volume.value = 0; // Adjust if you want to hear user key hits
+
+    // Key-lane mapping by difficulty
+    const laneByKey = {
+      "single-key": ["j"],
+      "double-key": ["j", "k"],
+      "easy":       ["j", "k", "l", ";"],
+      "medium":     ["s", "d", "f", "j", "k", "l"],
+      "hard":       ["a", "s", "d", "f", "j", "k", "l", ";"],
+      "expert":     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
+      "legendary":  ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'"],
+    };
+
+    // Speed of note descent
+    const noteSpeed = 0.3;
+    // The Y position at which the player is supposed to hit notes
+    const hitLineY = 130;
+
+    // Timing windows for judging hits
+    const timingThresholds = [
+      { window: 10,  color: "white",  points: 300, text: "Perfect!", textColor: "black" },
+      { window: 20,  color: "yellow", points: 150, text: "Good",     textColor: "black", timingHelp: true },
+      { window: 30,  color: "orange", points: 50,  text: "Okay",     textColor: "black", timingHelp: true },
+      { window: 50,  color: "red",    points: 0,   text: "Miss",     textColor: "white" }
+    ];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth * 0.75;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function populateSongList() {
+      songList.innerHTML = "";
+      songs.forEach((song) => {
+        const li = document.createElement('li');
+        li.innerText = song.name;
+        li.addEventListener('click', async () => {
+          await stopGame();
+          currentSong = song;
+          currentSongUrl = `songs/${song.name}.mid`;
+          currentIsFile = false;
+          loadTracksInfo(song.defaultTracks);
+          await loadMidiFromUrl(currentSongUrl);
+
+          // We'll also try to fetch the WAV (if it exists), but if it fails, we'll skip it
+          const wavUrl = `songs/${song.name}.wav`;
+          try {
+            const response = await fetch(wavUrl);
+            if (!response.ok) {
+              // If the WAV is not found (404), throw an error so we skip
+              throw new Error("WAV not found");
+            }
+            const arrayBuf = await response.arrayBuffer();
+
+            // If Timidity is set up and we have a context, decode now. Otherwise, decode at startGame.
+            if (timidityPlayer && timidityPlayer.context) {
+              wavBuffer = await timidityPlayer.context.decodeAudioData(arrayBuf);
+            } else {
+              // We'll store it for decoding later
+              wavBuffer = arrayBuf;
+            }
+          } catch (err) {
+            console.warn("No WAV found or error loading WAV:", err);
+            wavBuffer = null; // ensure wavBuffer is null if there's an error
+          }
+        });
+        songList.appendChild(li);
+      });
+    }
+    populateSongList();
+
+    function loadTracksInfo(defaultTracks=[]) {
+      multitrackList.innerHTML = "";
+      if (!allTracks || allTracks.length === 0) return;
+      allTracks.forEach((track, idx) => {
+        if (track.notes.length > 0) {
+          const div = document.createElement('div');
+          div.className = "multitrack-item";
+          const input = document.createElement('input');
+          input.type = "checkbox";
+          input.id = `trackCheck${idx}`;
+          input.value = idx;
+          if (defaultTracks.includes(idx)) {
+            input.checked = true;
+          }
+          const label = document.createElement('label');
+          label.htmlFor = `trackCheck${idx}`;
+          label.innerText = `Track ${idx}`;
+          div.appendChild(input);
+          div.appendChild(label);
+          multitrackList.appendChild(div);
+        }
+      });
+    }
+
+    function getSelectedTracks() {
+      const selected = [];
+      const inputs = multitrackList.querySelectorAll("input[type=checkbox]");
+      inputs.forEach(i => {
+        if (i.checked) {
+          selected.push(parseInt(i.value));
+        }
+      });
+      return selected;
+    }
+
+    async function loadMidiFromUrl(url) {
+      try {
+        const midi = await Midi.fromUrl(url);
+        processMidiData(midi);
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    async function loadMidiFromFile(arrayBuffer) {
+      try {
+        const midi = new Midi(arrayBuffer);
+        processMidiData(midi);
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    function processMidiData(midi) {
+      allTracks = midi.tracks;
+      let earliestNoteTime = Infinity;
+      if (skipToEarliestNote) {
+        midi.tracks.forEach(track => {
+          track.notes.forEach(note => {
+            if (note.time < earliestNoteTime) earliestNoteTime = note.time;
+          });
+        });
+        midi.tracks.forEach(track => {
+          track.notes.forEach(note => {
+            note.time -= earliestNoteTime;
+          });
+        });
+      }
+      Tone.Transport.bpm.value = midi.header.tempos.length
+        ? midi.header.tempos[0].bpm
+        : 120;
+      loadTracksInfo(currentSong ? currentSong.defaultTracks : []);
+    }
+
+    async function setupTimidity() {
+      // Create new Timidity instance
+      timidityPlayer = new Timidity();
+      timidityPlayer.context = new (window.AudioContext || window.webkitAudioContext)();
+      if (!currentIsFile) {
+        // If we're loading from a URL, use timidityPlayer.load
+        await timidityPlayer.load(currentSongUrl);
+      } else {
+        // If timidityPlayer.loadData is available, you can load from the array buffer directly
+        if (typeof timidityPlayer.loadData === "function" && fileArrayBuffer) {
+          await timidityPlayer.loadData(fileArrayBuffer);
+        }
+      }
+    }
+
+    function resetGameData() {
+      trackNotes = [];
+      activeNotes = [];
+      pitchMin = 0;
+      pitchMax = 127;
+      score = 0;
+      missedNotes = 0;
+      lastTime = 0;
+    }
+
+    function buildTrackNotes() {
+      const selectedTracks = getSelectedTracks();
+      let allPitches = [];
+      selectedTracks.forEach(tIndex => {
+        if (allTracks[tIndex]) {
+          allPitches = allPitches.concat(allTracks[tIndex].notes.map(n => n.midi));
+        }
+      });
+      if (allPitches.length > 0) {
+        pitchMin = Math.min(...allPitches);
+        pitchMax = Math.max(...allPitches);
+      }
+      selectedTracks.forEach(tIndex => {
+        if (!allTracks[tIndex]) return;
+        allTracks[tIndex].notes.forEach(note => {
+          trackNotes.push({
+            time: (note.time + noteDelay - (canvas.height / canvasHeightFactor)) * 1000,
+            lane: mapPitchToLane(note.midi),
+            duration: note.duration * 1000,
+            spawned: false,
+            midiNote: note.midi
+          });
+        });
+      });
+      trackNotes.sort((a,b) => a.time - b.time);
+
+      // Optional: remove overlapping notes in the same lane if you want simpler gameplay
+      const uniqueTrackNotes = [];
+      trackNotes.forEach(note => {
+        const overlappingNoteIndex = uniqueTrackNotes.findIndex(uniqueNote =>
+          uniqueNote.lane === note.lane &&
+          (note.time < uniqueNote.time + uniqueNote.duration &&
+           note.time + note.duration > uniqueNote.time)
+        );
+        if (overlappingNoteIndex === -1) {
+          uniqueTrackNotes.push(note);
+        }
+      });
+      trackNotes = uniqueTrackNotes;
+    }
+
+    function mapPitchToLane(midiNote) {
+      if (pitchMax === pitchMin) return 0;
+      const normalized = (midiNote - pitchMin) / (pitchMax - pitchMin);
+      const totalLanes = laneByKey[currentDifficulty].length;
+      const laneIndex = Math.floor(normalized * totalLanes);
+      return laneByKey[currentDifficulty][laneIndex];
+    }
+
+    function spawnNotes(currentTime) {
+      for (let i = 0; i < trackNotes.length; i++) {
+        const noteData = trackNotes[i];
+        if (!noteData.spawned && currentTime >= noteData.time) {
+          noteData.spawned = true;
+          activeNotes.push({
+            lane: noteData.lane,
+            duration: noteData.duration,
+            spawnTime: noteData.time,
+            y: canvas.height,
+            hit: false,
+            missed: false,
+            color: "#4CAF50",
+            text: "",
+            textColor: "#000",
+            midiNote: noteData.midiNote
+          });
+        }
+      }
+    }
+
+    function updateNotes(deltaTime) {
+      for (let i = 0; i < activeNotes.length; i++) {
+        activeNotes[i].y -= noteSpeed * deltaTime;
+      }
+      activeNotes = activeNotes.filter(n => (n.y + getNoteHeight(n.duration)) > 0);
+    }
+
+    function getNoteHeight(duration) {
+      return (duration * noteSpeed) - 10;
+    }
+
+    function getNoteTop(note) {
+      return note.y;
+    }
+
+    function drawNotes() {
+      const allPossibleKeys = laneByKey["legendary"];
+      const laneWidth = canvas.width / allPossibleKeys.length;
+      for (let i = 0; i < activeNotes.length; i++) {
+        const note = activeNotes[i];
+        const noteHeight = getNoteHeight(note.duration);
+        const x = allPossibleKeys.indexOf(note.lane) * laneWidth;
+        const yTop = note.y;
+        ctx.fillStyle = note.color;
+        ctx.fillRect(x + laneWidth * 0.1, yTop, laneWidth * 0.8, noteHeight);
+        if (note.text) {
+          ctx.fillStyle = note.textColor;
+          ctx.font = "16px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(note.text, x + laneWidth * 0.5, yTop + 25);
+        }
+      }
+    }
+
+    function drawHitLine() {
+      ctx.strokeStyle = "#fffa";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, hitLineY);
+      ctx.lineTo(canvas.width, hitLineY);
+      ctx.stroke();
+    }
+
+    function judgeHit(note, distance) {
+      for (let i = 0; i < timingThresholds.length; i++) {
+        if (Math.abs(distance) <= timingThresholds[i].window) {
+          note.color = timingThresholds[i].color;
+          score += timingThresholds[i].points;
+          note.hit = true;
+          note.text = timingThresholds[i].text;
+          note.textColor = timingThresholds[i].textColor;
+          if (timingThresholds[i].points === 0) {
+            note.missed = true;
+            missedNotes++;
+          }
+          if (timingThresholds[i].points > 0) {
+            userSynth.triggerAttackRelease(
+              Tone.Frequency(note.midiNote, "midi"),
+              note.duration / 1000,
+              Tone.now() - 0.1
+            );
+          }
+          if (timingThresholds[i].timingHelp) {
+            showTimingHelp(note, distance);
+          }
+          return;
+        }
+      }
+      // If not matched any window, it's a complete miss
+      note.color = "#B71C1C";
+      note.hit = true;
+      note.missed = true;
+      missedNotes++;
+    }
+
+    function showTimingHelp(note, distance) {
+      const keyNames = laneByKey[currentDifficulty];
+      const laneIndex = keyNames.indexOf(note.lane);
+      if (laneIndex < 0) return;
+      const keyName = note.lane;
+      const keyElement = document.getElementById(`key-${keyName}`);
+      if (!keyElement) return;
+
+      const timingHelpElement = document.createElement('div');
+      timingHelpElement.classList.add('timing-help');
+      timingHelpElement.innerText = distance < 0 ? "Too Late" : "Too Early";
+      keyElement.appendChild(timingHelpElement);
+      setTimeout(() => {
+        timingHelpElement.style.opacity = 0;
+        setTimeout(() => {
+          if (keyElement.contains(timingHelpElement)) {
+            keyElement.removeChild(timingHelpElement);
+          }
+        }, 500);
+      }, 500);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (laneByKey[currentDifficulty].includes(key)) {
+        const candidates = activeNotes.filter(n => n.lane === key && !n.hit && !n.missed);
+        let bestNote = null;
+        let bestDistance = Infinity;
+        const threshold = 50;
+        for (let i = 0; i < candidates.length; i++) {
+          const note = candidates[i];
+          const distToLine = getNoteTop(note) - hitLineY;
+          if (Math.abs(distToLine) <= threshold && Math.abs(distToLine) < Math.abs(bestDistance)) {
+            bestDistance = distToLine;
+            bestNote = note;
+          }
+        }
+        if (bestNote) {
+          judgeHit(bestNote, bestDistance);
+        }
+        const keyEl = document.getElementById(`key-${key}`);
+        if (keyEl) keyEl.classList.add('pressed');
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (laneByKey[currentDifficulty].includes(key)) {
+        const keyEl = document.getElementById(`key-${key}`);
+        if (keyEl) keyEl.classList.remove('pressed');
+      }
+    });
+
+    function updateScoreDisplay() {
+      document.getElementById('scoreDisplay').innerText = "Score: " + score;
+    }
+
+    function updateMissedDisplay() {
+      document.getElementById('missedDisplay').innerText = "Missed: " + missedNotes;
+    }
+
+    function gameLoop() {
+      // We rely on Timidity's own AudioContext time:
+      if (!timidityPlayer || !timidityPlayer.context) {
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+      const audioTime = timidityPlayer.context.currentTime;
+      const currentTime = audioTime * 1000; // convert to ms
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      spawnNotes(currentTime);
+      updateNotes(deltaTime);
+      drawNotes();
+      drawHitLine();
+      updateScoreDisplay();
+      updateMissedDisplay();
+
+      // Check if notes pass the hit line without being hit
+      activeNotes.forEach(note => {
+        const missThreshold = timingThresholds.find(t => t.points === 0);
+        if (!note.hit && !note.missed && getNoteTop(note) < hitLineY - missThreshold.window) {
+          note.missed = true;
+          note.color = missThreshold.color;
+          note.text = missThreshold.text;
+          note.textColor = missThreshold.textColor;
+          missedNotes++;
+        }
+      });
+
+      if (isPlaying) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    async function startGame() {
+      if (!allTracks || allTracks.length === 0) return;
+      resetGameData();
+      buildTrackNotes();
+
+      // Set up Timidity & AudioContext
+      await setupTimidity();
+
+      // If wavBuffer was fetched but not yet decoded, decode it now
+      if (wavBuffer && !(wavBuffer instanceof AudioBuffer)) {
+        wavBuffer = await timidityPlayer.context.decodeAudioData(wavBuffer);
+      }
+
+      // Ensure Tone.js uses the same audio context
+      Tone.setContext(timidityPlayer.context);
+
+      // Start Timidity's MIDI playback
+      // timidityPlayer.play();
+
+      // Start WAV playback in sync only if wavBuffer exists (otherwise skip)
+      if (wavBuffer instanceof AudioBuffer) {
+        wavSource = timidityPlayer.context.createBufferSource();
+        wavSource.buffer = wavBuffer;
+        wavSource.connect(timidityPlayer.context.destination);
+        // Start at exactly the same time:
+        const startTime = timidityPlayer.context.currentTime + 0.5; // Delay WAV start by 0.1 seconds
+        wavSource.start(startTime);
+      }
+
+      Tone.Transport.start();
+      isPlaying = true;
+      // Set initial reference time
+      lastTime = timidityPlayer.context.currentTime * 1000;
+      requestAnimationFrame(gameLoop);
+    }
+
+    async function stopGame() {
+      if (timidityPlayer && isPlaying) {
+        timidityPlayer.stop();
+        Tone.Transport.stop();
+      }
+      if (wavSource) {
+        // Stop the WAV source as well
+        try { wavSource.stop(); } catch (err) {}
+        wavSource = null;
+      }
+      isPlaying = false;
+      resetGameData();
+    }
+
+    function generateLanes(difficulty) {
+      laneContainer.innerHTML = "";
+      const allPossibleKeys = laneByKey["legendary"];
+      for (let i = 0; i < allPossibleKeys.length; i++) {
+        const laneDiv = document.createElement("div");
+        laneDiv.className = "lane";
+        laneDiv.style.left = (i * (100 / allPossibleKeys.length)) + "%";
+        if (!laneByKey[difficulty].includes(allPossibleKeys[i])) {
+          laneDiv.classList.add("disabled");
+        }
+        laneContainer.appendChild(laneDiv);
+      }
+    }
+
+    startButton.addEventListener('click', async () => {
+      await stopGame();
+      await startGame();
+    });
+
+    // Create buttons for each difficulty
+    Object.keys(laneByKey).forEach(difficulty => {
+      const button = document.createElement('button');
+      button.id = `${difficulty}Button`;
+      button.innerText = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      button.addEventListener('click', () => {
+        currentDifficulty = difficulty;
+        generateLanes(currentDifficulty);
+      });
+      difficultyButtons.appendChild(button);
+    });
+
+    generateLanes(currentDifficulty);
+
+    // Handling local MIDI file
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          fileArrayBuffer = e.target.result;
+          await stopGame();
+          currentSong = { name: file.name, defaultTracks: [] };
+          currentSongUrl = file.name;
+          currentIsFile = true;
+
+          // Process the MIDI from file
+          processMidiData(new Midi(fileArrayBuffer));
+          // We skip local WAV synergy here unless you implement your own logic for that
+          wavBuffer = null;
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  </script>
+</body>
+</html>
