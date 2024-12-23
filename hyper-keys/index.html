@@ -258,10 +258,6 @@
     let currentDifficulty = 'easy';
     let fileArrayBuffer = null;
 
-    // We'll store the decoded WAV buffer here (if it exists)
-    let wavBuffer = null;
-    let wavSource = null;
-
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const fileInput = document.getElementById("fileInput");
@@ -318,28 +314,6 @@
           currentIsFile = false;
           loadTracksInfo(song.defaultTracks);
           await loadMidiFromUrl(currentSongUrl);
-
-          // We'll also try to fetch the WAV (if it exists), but if it fails, we'll skip it
-          const wavUrl = `songs/${song.name}.wav`;
-          try {
-            const response = await fetch(wavUrl);
-            if (!response.ok) {
-              // If the WAV is not found (404), throw an error so we skip
-              throw new Error("WAV not found");
-            }
-            const arrayBuf = await response.arrayBuffer();
-
-            // If Timidity is set up and we have a context, decode now. Otherwise, decode at startGame.
-            if (timidityPlayer && timidityPlayer.context) {
-              wavBuffer = await timidityPlayer.context.decodeAudioData(arrayBuf);
-            } else {
-              // We'll store it for decoding later
-              wavBuffer = arrayBuf;
-            }
-          } catch (err) {
-            console.warn("No WAV found or error loading WAV:", err);
-            wavBuffer = null; // ensure wavBuffer is null if there's an error
-          }
         });
         songList.appendChild(li);
       });
@@ -696,26 +670,11 @@
       // Set up Timidity & AudioContext
       await setupTimidity();
 
-      // If wavBuffer was fetched but not yet decoded, decode it now
-      if (wavBuffer && !(wavBuffer instanceof AudioBuffer)) {
-        wavBuffer = await timidityPlayer.context.decodeAudioData(wavBuffer);
-      }
-
       // Ensure Tone.js uses the same audio context
       Tone.setContext(timidityPlayer.context);
 
       // Start Timidity's MIDI playback
-      // timidityPlayer.play();
-
-      // Start WAV playback in sync only if wavBuffer exists (otherwise skip)
-      if (wavBuffer instanceof AudioBuffer) {
-        wavSource = timidityPlayer.context.createBufferSource();
-        wavSource.buffer = wavBuffer;
-        wavSource.connect(timidityPlayer.context.destination);
-        // Start at exactly the same time:
-        const startTime = timidityPlayer.context.currentTime + 0.5; // Delay WAV start by 0.1 seconds
-        wavSource.start(startTime);
-      }
+      timidityPlayer.play();
 
       Tone.Transport.start();
       isPlaying = true;
@@ -728,11 +687,6 @@
       if (timidityPlayer && isPlaying) {
         timidityPlayer.stop();
         Tone.Transport.stop();
-      }
-      if (wavSource) {
-        // Stop the WAV source as well
-        try { wavSource.stop(); } catch (err) {}
-        wavSource = null;
       }
       isPlaying = false;
       resetGameData();
@@ -785,8 +739,6 @@
 
           // Process the MIDI from file
           processMidiData(new Midi(fileArrayBuffer));
-          // We skip local WAV synergy here unless you implement your own logic for that
-          wavBuffer = null;
         };
         reader.readAsArrayBuffer(file);
       }
