@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Hyper Keys</title>
+  <title>Key Frenzy</title>
   <style>
     html, body {
       margin: 0;
@@ -215,27 +215,33 @@
   <script src="timidity.bundle.js"></script>
 
   <script>
-    let songs = [
-      { name: "bb", defaultTracks: [17] },
-      { name: "moonlight", defaultTracks: [0] },
-      { name: "test3", defaultTracks: [0] },
-      // { name: "mj", defaultTracks: [0] },
-      // { name: "Michael Jackson - Don't Stop Till You Get Enough", defaultTracks: [11] },
-      // { name: "Red Hot Chili Peppers - Otherside", defaultTracks: [15] },
-      // { name: "Lifehouse — Hanging By a Moment", defaultTracks: [0] },
-      // { name: "Legend of Zelda - Overworld", defaultTracks: [0] },
-      // { name: "Bob Seger - Old Time Rock and Roll", defaultTracks: [3] },
-      // { name: "Lifehouse - Halfway Gone", defaultTracks: [7] },
-      // { name: "Pirates of the Caribbean - Main Theme", defaultTracks: [0] },
-      // { name: "Imagine dragons - Radioactive", defaultTracks: [0] },
-      // { name: "SailorStarlightsTransformationBGM8", defaultTracks: [7] },
-      // { name: "73561_08", defaultTracks: [2] },
-      // { name: "skyfall", defaultTracks: [0] },
-      // { name: "midi_play2", defaultTracks: [0] },
-      // { name: "clocks", defaultTracks: [6] },
-      // { name: "25248_Cristoforis-Dream", defaultTracks: [0] },
-      // { name: "All I have to give", defaultTracks: [10] },
-    ];
+    const googleDriveApiKey = "AIzaSyBuGpP5AGrNE8FLF5GZaRpqf8Dr8_o4CIE"; // eric-terry project on my personal google account
+    const songFolderId = "1Up7uGgT8JH1Mqpf3XbwLdYOkJCWlXMZw"; // public-bucket/terryfamily.com/key-frenzy/songs
+
+    async function fetchSongs() {
+      const rawSongs = await fetch(`https://www.googleapis.com/drive/v3/files?q='${songFolderId}'+in+parents&key=${googleDriveApiKey}&fields=files(id,name)`);
+      const jsonSongs = await rawSongs.json();
+
+      let songs = jsonSongs.files
+        .filter(file => file.name.endsWith('.mid'))
+        .map(file => {
+          let name = file.name.replace(/\.mid$/, '').replace(/\[\d+(?:,\d+)*\]/, '').trim();
+          let defaultTracks = file.name.match(/\[(\d+(?:,\d+)*)\]/)
+            ? file.name.match(/\[(\d+(?:,\d+)*)\]/)[1].split(',').map(Number)
+            : [1];
+          let url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${googleDriveApiKey}`;
+          return { name, defaultTracks, url };
+        });
+
+      return songs;
+    }
+
+    async function initializeSongs() {
+      let songs = await fetchSongs();
+      populateSongList(songs);
+    }
+
+    initializeSongs();
 
     // If you'd like to start the MIDI from the earliest note, set this to true.
     let skipToEarliestNote = true;
@@ -302,7 +308,7 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    function populateSongList() {
+    function populateSongList(songs) {
       songList.innerHTML = "";
       songs.forEach((song) => {
         const li = document.createElement('li');
@@ -310,7 +316,7 @@
         li.addEventListener('click', async () => {
           await stopGame();
           currentSong = song;
-          currentSongUrl = `songs/${song.name}.mid`;
+          currentSongUrl = song.url;
           currentIsFile = false;
           loadTracksInfo(song.defaultTracks);
           await loadMidiFromUrl(currentSongUrl);
@@ -318,7 +324,6 @@
         songList.appendChild(li);
       });
     }
-    populateSongList();
 
     function loadTracksInfo(defaultTracks=[]) {
       multitrackList.innerHTML = "";
@@ -329,14 +334,14 @@
           div.className = "multitrack-item";
           const input = document.createElement('input');
           input.type = "checkbox";
-          input.id = `trackCheck${idx}`;
-          input.value = idx;
-          if (defaultTracks.includes(idx)) {
+          input.id = `trackCheck${idx + 1}`;
+          input.value = idx + 1;
+          if (defaultTracks.includes(idx + 1)) {
             input.checked = true;
           }
           const label = document.createElement('label');
-          label.htmlFor = `trackCheck${idx}`;
-          label.innerText = `Track ${idx}`;
+          label.htmlFor = `trackCheck${idx + 1}`;
+          label.innerText = `Track ${idx + 1}`;
           div.appendChild(input);
           div.appendChild(label);
           multitrackList.appendChild(div);
@@ -349,7 +354,7 @@
       const inputs = multitrackList.querySelectorAll("input[type=checkbox]");
       inputs.forEach(i => {
         if (i.checked) {
-          selected.push(parseInt(i.value));
+          selected.push(parseInt(i.value) - 1);
         }
       });
       return selected;
@@ -445,7 +450,6 @@
       });
       trackNotes.sort((a,b) => a.time - b.time);
 
-      // Optional: remove overlapping notes in the same lane if you want simpler gameplay
       const uniqueTrackNotes = [];
       trackNotes.forEach(note => {
         const overlappingNoteIndex = uniqueTrackNotes.findIndex(uniqueNote =>
@@ -455,6 +459,14 @@
         );
         if (overlappingNoteIndex === -1) {
           uniqueTrackNotes.push(note);
+        } else {
+          const overlappingNote = uniqueTrackNotes[overlappingNoteIndex];
+          if (note.time < overlappingNote.time) {
+            overlappingNote.time = note.time;
+          }
+          if (note.time + note.duration > overlappingNote.time + overlappingNote.duration) {
+            overlappingNote.duration = (note.time + note.duration) - overlappingNote.time;
+          }
         }
       });
       trackNotes = uniqueTrackNotes;
@@ -497,7 +509,8 @@
     }
 
     function getNoteHeight(duration) {
-      return (duration * noteSpeed) - 10;
+      const minHeight = 20;
+      return Math.max((duration * noteSpeed) - 10, minHeight);
     }
 
     function getNoteTop(note) {
@@ -544,13 +557,7 @@
             note.missed = true;
             missedNotes++;
           }
-          if (timingThresholds[i].points > 0) {
-            userSynth.triggerAttackRelease(
-              Tone.Frequency(note.midiNote, "midi"),
-              note.duration / 1000,
-              Tone.now() - 0.1
-            );
-          }
+
           if (timingThresholds[i].timingHelp) {
             showTimingHelp(note, distance);
           }
@@ -603,7 +610,36 @@
         }
         if (bestNote) {
           judgeHit(bestNote, bestDistance);
+
+          userSynth.triggerAttackRelease(
+            Tone.Frequency(bestNote.midiNote, "midi"),
+            bestNote.duration / 1000,
+            Tone.now() - 0.1
+          );
+        } else {
+          const laneNotes = trackNotes.filter(n => n.lane === key);
+          let nearestNote = null;
+          let nearestDistance = Infinity;
+          const currentTime = timidityPlayer.context.currentTime * 1000; // convert to ms
+
+          for (let i = 0; i < laneNotes.length; i++) {
+            const note = laneNotes[i];
+            const distToCurrentTime = note.time - currentTime;
+            if (Math.abs(distToCurrentTime) < Math.abs(nearestDistance)) {
+              nearestDistance = distToCurrentTime;
+              nearestNote = note;
+            }
+          }
+
+          if (nearestNote) {
+            userSynth.triggerAttackRelease(
+              Tone.Frequency(nearestNote.midiNote, "midi"),
+              0.25,
+              Tone.now() - 0.1
+            );
+          }
         }
+
         const keyEl = document.getElementById(`key-${key}`);
         if (keyEl) keyEl.classList.add('pressed');
       }
