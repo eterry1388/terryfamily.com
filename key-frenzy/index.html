@@ -5,249 +5,175 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Key Frenzy</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
     html, body {
       margin: 0;
       padding: 0;
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #222;
-      font-family: sans-serif;
-      color: #fff;
+      display: flex;
+      font-family: 'Roboto', sans-serif;
+      background: #333;
+      color: #eee;
     }
     #gameCanvas {
-      display: block;
-      background: #222;
-      width: 75vw;
+      background: #111;
+      width: calc(100vw - 350px);
       height: 100vh;
-      float: left;
-      position: relative;
+      min-width: 600px;
     }
-    #laneContainer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 75vw;
-      pointer-events: none;
-    }
-    .lane {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 121px;
-      background: rgba(255, 255, 255, 0.1);
-    }
-    .lane.disabled {
-      background: rgba(255, 255, 255, 0.2);
-    }
-    .key-indicators {
-      position: absolute;
-      top: 0;
-      width: 75vw;
-      display: flex;
-      justify-content: space-between;
-      font-size: 2em;
-      color: #fff;
-      pointer-events: none;
-      user-select: none;
-      margin-top: 70px;
-    }
-    .key-indicators span {
-      flex: 1;
-      text-align: center;
-      background: #fff;
-      color: #000;
-      border: 1px solid #000;
-      border-radius: 5px;
-      margin: 0 2px;
-      transition: transform 0.1s;
-      position: relative;
-    }
-    .key-indicators span.pressed {
-      transform: translateY(5px);
-      background: #ccc;
-    }
-    .timing-help {
-      position: absolute;
-      top: -20px;
-      right: -10px;
-      font-size: 0.5em;
-      color: #fff;
-      opacity: 1;
-      transition: opacity 0.5s ease-out;
-    }
-    #scoreDisplay {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      font-size: 1.5em;
-    }
-    #missedDisplay {
-      position: absolute;
-      bottom: 10px;
-      left: 150px;
-      font-size: 1.5em;
-    }
-    #songPicker {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 20vw;
+    #sideDiv {
+      width: 350px;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px 15px;
-      border-left: 2px solid #444;
-      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.85);
+      flex-shrink: 0;
       display: flex;
       flex-direction: column;
+    }
+    #sideDiv h2 {
+      text-align: center;
+      color: #eee;
+      font-size: 2.5em;
+      margin: 20px 0;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #666, #aaa);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      position: sticky;
+      top: 0;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 1;
     }
     #songList {
       list-style: none;
       padding: 0;
       margin: 0;
-      flex: 1;
+      flex-grow: 0;
+      overflow-y: auto;
     }
-    #songPicker li {
-      padding: 10px;
-      margin: 5px 0;
-      background: #444;
+    #songList li {
+      padding: 15px;
+      margin: 10px;
+      background: #333;
       color: #fff;
-      border-radius: 4px;
+      border-radius: 8px;
       cursor: pointer;
       text-align: center;
+      transition: background 0.3s, transform 0.2s;
     }
-    #songPicker li:hover {
-      background: #555;
+    #songList li:hover {
+      background: #444;
+      transform: scale(1.05);
     }
-    .controls-container {
+    #currentSongInfo {
+      padding: 15px;
+      color: #eee;
+      background: #444;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+      margin: 15px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-top: 10px;
+      align-items: center;
+      text-align: center;
     }
-    .track-selection {
-      margin-top: 10px;
+    #currentSongInfo h3 {
+      margin: 5px 0;
+      font-size: 1.6em;
+      color: #ccc;
+      text-align: center;
     }
-    .buttons-container {
+    #currentSongInfo p {
+      margin: 5px 0;
+      font-size: 1.3em;
+      color: #fff;
+      text-align: center;
+    }
+    #levelSelection {
       display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      gap: 5px;
-      margin-top: 15px;
-    }
-    .file-upload-container {
+      justify-content: center;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
-    button {
-      padding: 10px;
-      font-size: 1em;
-      background: #4CAF50;
+    #levelSelection button {
+      margin: 3px;
+      padding: 5px 10px;
+      background: #555;
       color: #fff;
       border: none;
       border-radius: 5px;
       cursor: pointer;
+      transition: background 0.3s;
     }
-    button#visualizerButton {
-      background: #2196F3;
+    #levelSelection button:hover {
+      background: #666;
     }
-    input[type="file"] {
-      background: #333;
+    #levelSelection button.selected {
+      background: #888;
+      font-weight: bold;
+    }
+    #startButton, #stopButton {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 20px;
       color: #fff;
       border: none;
-    }
-    .multitrack-list {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      margin-top: 10px;
-    }
-    .multitrack-item label {
+      border-radius: 5px;
       cursor: pointer;
+      transition: background 0.3s;
+    }
+    #startButton {
+      background: #28a745;
+    }
+    #startButton:hover {
+      background: #218838;
+    }
+    #stopButton {
+      background: #dc3545;
+    }
+    #stopButton:hover {
+      background: #c82333;
     }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
-  <div id="laneContainer"></div>
-
-  <div class="key-indicators" id="keyIndicators">
-    <span id="key-a">A</span>
-    <span id="key-s">S</span>
-    <span id="key-d">D</span>
-    <span id="key-f">-F-</span>
-    <span id="key-g">G</span>
-    <span id="key-h">H</span>
-    <span id="key-j">-J-</span>
-    <span id="key-k">K</span>
-    <span id="key-l">L</span>
-    <span id="key-;">;</span>
-    <span id="key-'">'</span>
-  </div>
-
-  <div id="scoreDisplay">Score: 0</div>
-  <div id="missedDisplay">Missed: 0</div>
-
-  <div id="songPicker">
+  <div id="sideDiv">
+    <h2>Key Frenzy</h2>
     <ul id="songList"></ul>
-    <div class="controls-container">
-      <div class="file-upload-container">
-        <input type="file" id="fileInput" accept=".mid,.midi" />
+
+    <div id="currentSongInfo">
+      <h3>Song</h3>
+      <p id="selectedSong">None</p>
+      <h3>Level</h3>
+      <div id="levelSelection">
+        <button onclick="selectLevel(1)">1</button>
+        <button onclick="selectLevel(2)">2</button>
+        <button onclick="selectLevel(3)">3</button>
+        <button onclick="selectLevel(4)">4</button>
+        <button onclick="selectLevel(5)">5</button>
+        <button onclick="selectLevel(6)">6</button>
+        <button onclick="selectLevel(7)">7</button>
       </div>
-      <div class="track-selection">
-        <h3>Select Track(s) to PLAY</h3>
-        <div id="multitrackList" class="multitrack-list"></div>
-      </div>
-      <div class="buttons-container">
-        <button id="startButton">Start Game</button>
-        <button id="visualizerButton" onclick="window.location.href='view.html'">Visualizer</button>
-      </div>
-      <div class="difficulty-selection">
-        <h3>Select Difficulty</h3>
-        <div id="difficultyButtons"></div>
-      </div>
+      <button id="startButton" onclick="startGame()">Play</button>
+      <button id="stopButton" onclick="stopGame()">Stop</button>
     </div>
   </div>
 
-  <!-- External libraries -->
   <script src="https://unpkg.com/tone"></script>
   <script src="https://unpkg.com/@tonejs/midi"></script>
   <script src="timidity.bundle.js"></script>
 
   <script>
-    const googleDriveApiKey = "AIzaSyBuGpP5AGrNE8FLF5GZaRpqf8Dr8_o4CIE"; // eric-terry project on my personal google account
-    const songFolderId = "1Up7uGgT8JH1Mqpf3XbwLdYOkJCWlXMZw"; // public-bucket/terryfamily.com/key-frenzy/songs
-
-    async function fetchSongs() {
-      const rawSongs = await fetch(`https://www.googleapis.com/drive/v3/files?q='${songFolderId}'+in+parents&key=${googleDriveApiKey}&fields=files(id,name)`);
-      const jsonSongs = await rawSongs.json();
-
-      let songs = jsonSongs.files
-        .filter(file => file.name.endsWith('.mid'))
-        .map(file => {
-          let name = file.name.replace(/\.mid$/, '').replace(/\[\d+(?:,\d+)*\]/, '').trim();
-          let defaultTracks = file.name.match(/\[(\d+(?:,\d+)*)\]/)
-            ? file.name.match(/\[(\d+(?:,\d+)*)\]/)[1].split(',').map(Number)
-            : [1];
-          let url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${googleDriveApiKey}`;
-          return { name, defaultTracks, url };
-        });
-
-      return songs;
-    }
-
-    async function initializeSongs() {
-      let songs = await fetchSongs();
-      populateSongList(songs);
-    }
-
-    initializeSongs();
-
-    // If you'd like to start the MIDI from the earliest note, set this to true.
-    let skipToEarliestNote = true;
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let isPlaying = false;
     let currentSong = null;
-    let currentSongUrl = "";
+    let currentSongUrl = null;
     let currentIsFile = false;
+    let fileArrayBuffer = null;
     let allTracks = [];
     let trackNotes = [];
     let activeNotes = [];
@@ -256,28 +182,34 @@
     let lastTime = 0;
     let pitchMin = 0;
     let pitchMax = 127;
+    let timidityPlayer = null;
+    let skipToEarliestNote = true;
 
-    let timidityPlayer = null;   // Timidity for MIDI
-    let isPlaying = false;
-    let noteDelay = 0.6;
-    let canvasHeightFactor = 370;
-    let currentDifficulty = 'easy';
-    let fileArrayBuffer = null;
+    let currentDifficulty = "medium";
+    let level = 3;
 
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const fileInput = document.getElementById("fileInput");
-    const songList = document.getElementById('songList');
-    const multitrackList = document.getElementById('multitrackList');
-    const startButton = document.getElementById('startButton');
-    const difficultyButtons = document.getElementById('difficultyButtons');
-    const laneContainer = document.getElementById('laneContainer');
+    const travelTimeMs = 2000;
+    let noteSpeed = 0;
+    const noteDelayMs = 750; // TODO: Have this be user-configurable
+    const hitLineY = 100;
 
-    // If you want to preview user hits with a small synth:
-    const userSynth = new Tone.PolySynth(Tone.Synth).toDestination();
-    userSynth.volume.value = 0; // Adjust if you want to hear user key hits
+    const timingThresholds = [
+      { window: 20,  color: "white",  points: 300, text: "Perfect!", textColor: "black" },
+      { window: 30,  color: "yellow", points: 150, text: "Good",     textColor: "black" },
+      { window: 40,  color: "orange", points: 50,  text: "Okay",     textColor: "black" },
+      { window: 50,  color: "red",    points: 0,   text: "Miss",     textColor: "white" }
+    ];
 
-    // Key-lane mapping by difficulty
+    const difficultyMap = {
+      1: "single-key",
+      2: "double-key",
+      3: "easy",
+      4: "medium",
+      5: "hard",
+      6: "expert",
+      7: "legendary",
+    };
+
     const laneByKey = {
       "single-key": ["j"],
       "double-key": ["j", "k"],
@@ -288,90 +220,130 @@
       "legendary":  ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'"],
     };
 
-    // Speed of note descent
-    const noteSpeed = 0.3;
-    // The Y position at which the player is supposed to hit notes
-    const hitLineY = 130;
+    const keys = "ASDFGHJKL;'";
+    let userSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+    userSynth.volume.value = 0;
 
-    // Timing windows for judging hits
-    const timingThresholds = [
-      { window: 10,  color: "white",  points: 300, text: "Perfect!", textColor: "black" },
-      { window: 20,  color: "yellow", points: 150, text: "Good",     textColor: "black", timingHelp: true },
-      { window: 30,  color: "orange", points: 50,  text: "Okay",     textColor: "black", timingHelp: true },
-      { window: 50,  color: "red",    points: 0,   text: "Miss",     textColor: "white" }
-    ];
+    const songList = document.getElementById('songList');
+    const pressedKeys = new Set();
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth * 0.75;
+    window.addEventListener('resize', () => {
+      setCanvasSize();
+      drawStaticUI();
+    });
+
+    function setCanvasSize() {
+      canvas.width = Math.max(window.innerWidth - 350, 600);
       canvas.height = window.innerHeight;
+      noteSpeed = (canvas.height - hitLineY) / travelTimeMs;
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
 
-    function populateSongList(songs) {
+    function drawStaticUI() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawLanes();
+      drawHitLine();
+      drawFooter();
+    }
+
+    function drawLanes() {
+      const laneWidth = canvas.width / keys.length;
+      const activeLanes = laneByKey[currentDifficulty];
+      for (let i = 0; i < keys.length; i++) {
+        if (activeLanes.includes(keys[i].toLowerCase())) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        } else {
+          ctx.fillStyle = 'rgba(128, 128, 128, 0.2)';
+        }
+        ctx.fillRect(i * laneWidth, 0, laneWidth, canvas.height);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(i * laneWidth, 0);
+        ctx.lineTo(i * laneWidth, canvas.height);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(220, 220, 220, 1)';
+        ctx.font = '25px Roboto';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const yOffset = pressedKeys.has(keys[i].toLowerCase()) ? 35 : 30;
+        const letter = (keys[i] === 'F' || keys[i] === 'J') ? `-${keys[i]}-` : keys[i];
+        ctx.fillText(letter, i * laneWidth + laneWidth / 2, yOffset);
+      }
+    }
+
+    function drawHitLine() {
+      ctx.strokeStyle = "#fffa";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, hitLineY);
+      ctx.lineTo(canvas.width, hitLineY);
+      ctx.stroke();
+    }
+
+    function drawFooter() {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+      ctx.fillStyle = '#fff';
+      ctx.font = '20px Roboto';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`Score ${score}`, 40, canvas.height - 25);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${missedNotes} Missed`, canvas.width - 40, canvas.height - 25);
+    }
+
+    async function fetchSongs() {
+      const response = await fetch('https://eric-terry-public.s3.us-east-1.amazonaws.com/?prefix=terryfamily.com/key-frenzy/songs/');
+      const text = await response.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(text, "application/xml");
+      const contents = xmlDoc.getElementsByTagName("Contents");
+
+      const songs = Array.from(contents)
+        .map(item => {
+          const key = item.getElementsByTagName("Key")[0].textContent;
+          if (!key.endsWith('.mid')) return null;
+
+          const url = `https://eric-terry-public.s3.amazonaws.com/${key}`;
+          const baseName = key.substring(key.lastIndexOf('/') + 1);
+          const name = baseName.replace(/\[\d+(?:,\d+)*\]/, '').replace(/\.mid$/, '').trim();
+          const defaultTracksMatch = baseName.match(/\[(\d+(?:,\d+)*)\]/);
+          const defaultTracks = defaultTracksMatch
+            ? defaultTracksMatch[1].split(',').map(Number)
+            : [1];
+
+          return { name, defaultTracks, url };
+        })
+        .filter(song => song !== null)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return songs;
+    }
+
+    async function populateSongList() {
+      const songs = await fetchSongs();
       songList.innerHTML = "";
-      songs.forEach((song) => {
+      songs.forEach(song => {
         const li = document.createElement('li');
-        li.innerText = song.name;
+        li.textContent = song.name;
         li.addEventListener('click', async () => {
-          await stopGame();
+          if (isPlaying) return;
           currentSong = song;
           currentSongUrl = song.url;
           currentIsFile = false;
-          loadTracksInfo(song.defaultTracks);
-          await loadMidiFromUrl(currentSongUrl);
+          document.getElementById('selectedSong').textContent = song.name;
+          document.getElementById('startButton').style.display = 'block';
+          await loadMidiFromUrl(song.url);
         });
         songList.appendChild(li);
       });
     }
 
-    function loadTracksInfo(defaultTracks=[]) {
-      multitrackList.innerHTML = "";
-      if (!allTracks || allTracks.length === 0) return;
-      allTracks.forEach((track, idx) => {
-        if (track.notes.length > 0) {
-          const div = document.createElement('div');
-          div.className = "multitrack-item";
-          const input = document.createElement('input');
-          input.type = "checkbox";
-          input.id = `trackCheck${idx + 1}`;
-          input.value = idx + 1;
-          if (defaultTracks.includes(idx + 1)) {
-            input.checked = true;
-          }
-          const label = document.createElement('label');
-          label.htmlFor = `trackCheck${idx + 1}`;
-          label.innerText = `Track ${idx + 1}`;
-          div.appendChild(input);
-          div.appendChild(label);
-          multitrackList.appendChild(div);
-        }
-      });
-    }
-
-    function getSelectedTracks() {
-      const selected = [];
-      const inputs = multitrackList.querySelectorAll("input[type=checkbox]");
-      inputs.forEach(i => {
-        if (i.checked) {
-          selected.push(parseInt(i.value) - 1);
-        }
-      });
-      return selected;
-    }
-
     async function loadMidiFromUrl(url) {
       try {
         const midi = await Midi.fromUrl(url);
-        processMidiData(midi);
-      } catch(e) {
-        console.error(e);
-      }
-    }
-
-    async function loadMidiFromFile(arrayBuffer) {
-      try {
-        const midi = new Midi(arrayBuffer);
         processMidiData(midi);
       } catch(e) {
         console.error(e);
@@ -396,22 +368,6 @@
       Tone.Transport.bpm.value = midi.header.tempos.length
         ? midi.header.tempos[0].bpm
         : 120;
-      loadTracksInfo(currentSong ? currentSong.defaultTracks : []);
-    }
-
-    async function setupTimidity() {
-      // Create new Timidity instance
-      timidityPlayer = new Timidity();
-      timidityPlayer.context = new (window.AudioContext || window.webkitAudioContext)();
-      if (!currentIsFile) {
-        // If we're loading from a URL, use timidityPlayer.load
-        await timidityPlayer.load(currentSongUrl);
-      } else {
-        // If timidityPlayer.loadData is available, you can load from the array buffer directly
-        if (typeof timidityPlayer.loadData === "function" && fileArrayBuffer) {
-          await timidityPlayer.loadData(fileArrayBuffer);
-        }
-      }
     }
 
     function resetGameData() {
@@ -425,11 +381,12 @@
     }
 
     function buildTrackNotes() {
-      const selectedTracks = getSelectedTracks();
+      const selectedTracks = currentSong.defaultTracks;
+      trackNotes = [];
       let allPitches = [];
       selectedTracks.forEach(tIndex => {
-        if (allTracks[tIndex]) {
-          allPitches = allPitches.concat(allTracks[tIndex].notes.map(n => n.midi));
+        if (allTracks[tIndex - 1]) {
+          allPitches = allPitches.concat(allTracks[tIndex - 1].notes.map(n => n.midi));
         }
       });
       if (allPitches.length > 0) {
@@ -437,10 +394,11 @@
         pitchMax = Math.max(...allPitches);
       }
       selectedTracks.forEach(tIndex => {
-        if (!allTracks[tIndex]) return;
-        allTracks[tIndex].notes.forEach(note => {
+        if (!allTracks[tIndex - 1]) return;
+        allTracks[tIndex - 1].notes.forEach(note => {
           trackNotes.push({
-            time: (note.time + noteDelay - (canvas.height / canvasHeightFactor)) * 1000,
+            // spawn time is set so the note arrives at hitLineY at the correct moment
+            time: (note.time * 1000) + noteDelayMs - travelTimeMs,
             lane: mapPitchToLane(note.midi),
             duration: note.duration * 1000,
             spawned: false,
@@ -448,7 +406,7 @@
           });
         });
       });
-      trackNotes.sort((a,b) => a.time - b.time);
+      trackNotes.sort((a, b) => a.time - b.time);
 
       const uniqueTrackNotes = [];
       trackNotes.forEach(note => {
@@ -529,20 +487,12 @@
         ctx.fillRect(x + laneWidth * 0.1, yTop, laneWidth * 0.8, noteHeight);
         if (note.text) {
           ctx.fillStyle = note.textColor;
-          ctx.font = "16px Arial";
+          ctx.font = "16px Roboto";
           ctx.textAlign = "center";
-          ctx.fillText(note.text, x + laneWidth * 0.5, yTop + 25);
+          ctx.textBaseline = 'middle';
+          ctx.fillText(note.text, x + laneWidth * 0.5, yTop + noteHeight / 2);
         }
       }
-    }
-
-    function drawHitLine() {
-      ctx.strokeStyle = "#fffa";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, hitLineY);
-      ctx.lineTo(canvas.width, hitLineY);
-      ctx.stroke();
     }
 
     function judgeHit(note, distance) {
@@ -557,71 +507,55 @@
             note.missed = true;
             missedNotes++;
           }
-
-          if (timingThresholds[i].timingHelp) {
-            showTimingHelp(note, distance);
-          }
           return;
         }
       }
-      // If not matched any window, it's a complete miss
       note.color = "#B71C1C";
       note.hit = true;
       note.missed = true;
       missedNotes++;
     }
 
-    function showTimingHelp(note, distance) {
-      const keyNames = laneByKey[currentDifficulty];
-      const laneIndex = keyNames.indexOf(note.lane);
-      if (laneIndex < 0) return;
-      const keyName = note.lane;
-      const keyElement = document.getElementById(`key-${keyName}`);
-      if (!keyElement) return;
+    window.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      handleKeyHit(key);
+      pressedKeys.add(key);
+      drawStaticUI();
+    });
 
-      const timingHelpElement = document.createElement('div');
-      timingHelpElement.classList.add('timing-help');
-      timingHelpElement.innerText = distance < 0 ? "Too Late" : "Too Early";
-      keyElement.appendChild(timingHelpElement);
-      setTimeout(() => {
-        timingHelpElement.style.opacity = 0;
-        setTimeout(() => {
-          if (keyElement.contains(timingHelpElement)) {
-            keyElement.removeChild(timingHelpElement);
-          }
-        }, 500);
-      }, 500);
-    }
+    window.addEventListener('keyup', (event) => {
+      const key = event.key.toLowerCase();
+      pressedKeys.delete(key);
+      drawStaticUI();
+    });
 
-    window.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      if (laneByKey[currentDifficulty].includes(key)) {
-        const candidates = activeNotes.filter(n => n.lane === key && !n.hit && !n.missed);
-        let bestNote = null;
-        let bestDistance = Infinity;
-        const threshold = 50;
-        for (let i = 0; i < candidates.length; i++) {
-          const note = candidates[i];
-          const distToLine = getNoteTop(note) - hitLineY;
-          if (Math.abs(distToLine) <= threshold && Math.abs(distToLine) < Math.abs(bestDistance)) {
-            bestDistance = distToLine;
-            bestNote = note;
-          }
+    function handleKeyHit(key) {
+      if (!laneByKey[currentDifficulty].includes(key)) return;
+      const threshold = 50;
+      const candidates = activeNotes.filter(n => n.lane === key && !n.hit && !n.missed);
+      let bestNote = null;
+      let bestDistance = Infinity;
+      for (let i = 0; i < candidates.length; i++) {
+        const note = candidates[i];
+        const distToLine = getNoteTop(note) - hitLineY;
+        if (Math.abs(distToLine) <= threshold && Math.abs(distToLine) < Math.abs(bestDistance)) {
+          bestDistance = distToLine;
+          bestNote = note;
         }
-        if (bestNote) {
-          judgeHit(bestNote, bestDistance);
-
-          userSynth.triggerAttackRelease(
-            Tone.Frequency(bestNote.midiNote, "midi"),
-            bestNote.duration / 1000,
-            Tone.now() - 0.1
-          );
-        } else {
-          const laneNotes = trackNotes.filter(n => n.lane === key);
-          let nearestNote = null;
-          let nearestDistance = Infinity;
-          const currentTime = timidityPlayer.context.currentTime * 1000; // convert to ms
-
+      }
+      if (bestNote) {
+        judgeHit(bestNote, bestDistance);
+        userSynth.triggerAttackRelease(
+          Tone.Frequency(bestNote.midiNote, "midi"),
+          bestNote.duration / 1000,
+          Tone.now() - 0.1
+        );
+      } else {
+        const laneNotes = trackNotes.filter(n => n.lane === key);
+        let nearestNote = null;
+        let nearestDistance = Infinity;
+        if (timidityPlayer && timidityPlayer.context) {
+          const currentTime = timidityPlayer.context.currentTime * 1000;
           for (let i = 0; i < laneNotes.length; i++) {
             const note = laneNotes[i];
             const distToCurrentTime = note.time - currentTime;
@@ -630,7 +564,6 @@
               nearestNote = note;
             }
           }
-
           if (nearestNote) {
             userSynth.triggerAttackRelease(
               Tone.Frequency(nearestNote.midiNote, "midi"),
@@ -639,49 +572,67 @@
             );
           }
         }
-
-        const keyEl = document.getElementById(`key-${key}`);
-        if (keyEl) keyEl.classList.add('pressed');
       }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      const key = e.key.toLowerCase();
-      if (laneByKey[currentDifficulty].includes(key)) {
-        const keyEl = document.getElementById(`key-${key}`);
-        if (keyEl) keyEl.classList.remove('pressed');
-      }
-    });
-
-    function updateScoreDisplay() {
-      document.getElementById('scoreDisplay').innerText = "Score: " + score;
     }
 
-    function updateMissedDisplay() {
-      document.getElementById('missedDisplay').innerText = "Missed: " + missedNotes;
+    async function setupTimidity() {
+      timidityPlayer = new Timidity();
+      timidityPlayer.context = new (window.AudioContext || window.webkitAudioContext)();
+      if (!currentIsFile && currentSongUrl) {
+        await timidityPlayer.load(currentSongUrl);
+      } else if (fileArrayBuffer && typeof timidityPlayer.loadData === "function") {
+        await timidityPlayer.loadData(fileArrayBuffer);
+      }
+    }
+
+    async function startGame() {
+      if (!allTracks || allTracks.length === 0) return;
+      resetGameData();
+      buildTrackNotes();
+      await setupTimidity();
+      Tone.setContext(timidityPlayer.context);
+      timidityPlayer.play();
+      Tone.Transport.start();
+      userSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+      userSynth.volume.value = 0;
+      isPlaying = true;
+      lastTime = timidityPlayer.context.currentTime * 1000;
+      document.getElementById('startButton').style.display = 'none';
+      document.getElementById('stopButton').style.display = 'block';
+      requestAnimationFrame(gameLoop);
+    }
+
+    async function stopGame() {
+      if (timidityPlayer && isPlaying) {
+        timidityPlayer.pause();
+        Tone.Transport.stop();
+      }
+      isPlaying = false;
+      resetGameData();
+      userSynth.dispose();
+      drawStaticUI();
+      document.getElementById('startButton').style.display = 'block';
+      document.getElementById('stopButton').style.display = 'none';
     }
 
     function gameLoop() {
-      // We rely on Timidity's own AudioContext time:
       if (!timidityPlayer || !timidityPlayer.context) {
         requestAnimationFrame(gameLoop);
         return;
       }
       const audioTime = timidityPlayer.context.currentTime;
-      const currentTime = audioTime * 1000; // convert to ms
+      const currentTime = audioTime * 1000;
       const deltaTime = currentTime - lastTime;
       lastTime = currentTime;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+      drawLanes();
       spawnNotes(currentTime);
       updateNotes(deltaTime);
       drawNotes();
       drawHitLine();
-      updateScoreDisplay();
-      updateMissedDisplay();
+      drawFooter();
 
-      // Check if notes pass the hit line without being hit
       activeNotes.forEach(note => {
         const missThreshold = timingThresholds.find(t => t.points === 0);
         if (!note.hit && !note.missed && getNoteTop(note) < hitLineY - missThreshold.window) {
@@ -698,87 +649,22 @@
       }
     }
 
-    async function startGame() {
-      if (!allTracks || allTracks.length === 0) return;
-      resetGameData();
-      buildTrackNotes();
-
-      // Set up Timidity & AudioContext
-      await setupTimidity();
-
-      // Ensure Tone.js uses the same audio context
-      Tone.setContext(timidityPlayer.context);
-
-      // Start Timidity's MIDI playback
-      timidityPlayer.play();
-
-      Tone.Transport.start();
-      isPlaying = true;
-      // Set initial reference time
-      lastTime = timidityPlayer.context.currentTime * 1000;
-      requestAnimationFrame(gameLoop);
-    }
-
-    async function stopGame() {
-      if (timidityPlayer && isPlaying) {
-        timidityPlayer.stop();
-        Tone.Transport.stop();
-      }
-      isPlaying = false;
-      resetGameData();
-    }
-
-    function generateLanes(difficulty) {
-      laneContainer.innerHTML = "";
-      const allPossibleKeys = laneByKey["legendary"];
-      for (let i = 0; i < allPossibleKeys.length; i++) {
-        const laneDiv = document.createElement("div");
-        laneDiv.className = "lane";
-        laneDiv.style.left = (i * (100 / allPossibleKeys.length)) + "%";
-        if (!laneByKey[difficulty].includes(allPossibleKeys[i])) {
-          laneDiv.classList.add("disabled");
-        }
-        laneContainer.appendChild(laneDiv);
-      }
-    }
-
-    startButton.addEventListener('click', async () => {
-      await stopGame();
-      await startGame();
-    });
-
-    // Create buttons for each difficulty
-    Object.keys(laneByKey).forEach(difficulty => {
-      const button = document.createElement('button');
-      button.id = `${difficulty}Button`;
-      button.innerText = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
-      button.addEventListener('click', () => {
-        currentDifficulty = difficulty;
-        generateLanes(currentDifficulty);
+    function selectLevel(selectedLevel) {
+      if (isPlaying) return;
+      level = selectedLevel;
+      currentDifficulty = difficultyMap[level] || "medium";
+      const buttons = document.querySelectorAll('#levelSelection button');
+      buttons.forEach(button => {
+        button.classList.remove('selected');
       });
-      difficultyButtons.appendChild(button);
-    });
+      buttons[selectedLevel - 1].classList.add('selected');
+      drawStaticUI();
+    }
 
-    generateLanes(currentDifficulty);
-
-    // Handling local MIDI file
-    fileInput.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          fileArrayBuffer = e.target.result;
-          await stopGame();
-          currentSong = { name: file.name, defaultTracks: [] };
-          currentSongUrl = file.name;
-          currentIsFile = true;
-
-          // Process the MIDI from file
-          processMidiData(new Midi(fileArrayBuffer));
-        };
-        reader.readAsArrayBuffer(file);
-      }
-    });
+    setCanvasSize();
+    drawStaticUI();
+    populateSongList();
+    selectLevel(level);
   </script>
 </body>
 </html>
