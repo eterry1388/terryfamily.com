@@ -156,6 +156,7 @@
         <button onclick="selectLevel(5)">5</button>
         <button onclick="selectLevel(6)">6</button>
         <button onclick="selectLevel(7)">7</button>
+        <!-- Level 8 button will be appended dynamically if MIDI is available -->
       </div>
       <button id="startButton" onclick="startGame()">Play</button>
       <button id="stopButton" onclick="stopGame()">Stop</button>
@@ -169,6 +170,10 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+
+    let midiAccess = null;
+    let isMidiAvailable = false; // Will be set to true if a MIDI device is detected
+
     let isPlaying = false;
     let currentSong = null;
     let currentSongUrl = null;
@@ -190,8 +195,11 @@
 
     const travelTimeMs = 2000;
     let noteSpeed = 0;
-    const noteDelayMs = 750; // TODO: Have this be user-configurable
+    const noteDelayMs = 750;
     const hitLineY = 100;
+
+    // We'll allocate space at the top if we're in piano-roll mode
+    const pianoRollHeight = 150;
 
     const timingThresholds = [
       { window: 20,  color: "white",  points: 300, text: "Perfect!", textColor: "black" },
@@ -200,6 +208,7 @@
       { window: 50,  color: "red",    points: 0,   text: "Miss",     textColor: "white" }
     ];
 
+    // Add level 8 => "piano-roll"
     const difficultyMap = {
       1: "single-key",
       2: "double-key",
@@ -208,8 +217,10 @@
       5: "hard",
       6: "expert",
       7: "legendary",
+      8: "piano-roll" // We'll only show it if a MIDI device is available
     };
 
+    // For levels 1-7 (standard keyboard keys)
     const laneByKey = {
       "single-key": ["j"],
       "double-key": ["j", "k"],
@@ -218,14 +229,20 @@
       "hard":       ["a", "s", "d", "f", "j", "k", "l", ";"],
       "expert":     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
       "legendary":  ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";", "'"],
+      "piano-roll": [] // will be dynamically filled based on pitchMin/pitchMax
     };
 
+    // Computer keys used in levels 1-7:
     const keys = "ASDFGHJKL;'";
+
+    // We'll track which computer keys and MIDI notes are pressed
+    const pressedKeys = new Set();       // for computer keyboard
+    const midiPressedKeys = new Set();   // for MIDI keys (notes)
+
     let userSynth = new Tone.PolySynth(Tone.Synth).toDestination();
     userSynth.volume.value = 0;
 
     const songList = document.getElementById('songList');
-    const pressedKeys = new Set();
 
     window.addEventListener('resize', () => {
       setCanvasSize();
@@ -235,6 +252,8 @@
     function setCanvasSize() {
       canvas.width = Math.max(window.innerWidth - 350, 600);
       canvas.height = window.innerHeight;
+      // If in piano-roll mode, notes will travel from (canvas.height - pianoRollHeight) to something else
+      // but let's keep the travel time consistent and the note speed constant
       noteSpeed = (canvas.height - hitLineY) / travelTimeMs;
     }
 
@@ -246,6 +265,13 @@
     }
 
     function drawLanes() {
+      // If current difficulty is "piano-roll", draw black/white keys across top
+      if (currentDifficulty === "piano-roll") {
+        drawPianoRollLanes();
+        return;
+      }
+
+      // Otherwise, the old approach for standard keyboard difficulties
       const laneWidth = canvas.width / keys.length;
       const activeLanes = laneByKey[currentDifficulty];
       for (let i = 0; i < keys.length; i++) {
@@ -273,6 +299,40 @@
       }
     }
 
+    function drawPianoRollLanes() {
+      // Draw a piano-like range from pitchMin to pitchMax at the top
+      const totalKeys = pitchMax - pitchMin + 1;
+      if (totalKeys <= 0) return;
+
+      const laneWidth = canvas.width / totalKeys;
+      let xPos = 0;
+
+      for (let midiNote = pitchMin; midiNote <= pitchMax; midiNote++) {
+        if (isBlackKey(midiNote)) {
+          ctx.fillStyle = midiPressedKeys.has(midiNote) ? '#666' : '#000';
+        } else {
+          ctx.fillStyle = midiPressedKeys.has(midiNote) ? '#ccc' : '#fff';
+        }
+        ctx.fillRect(xPos, 0, laneWidth, pianoRollHeight);
+
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(xPos, 0, laneWidth, pianoRollHeight);
+
+        xPos += laneWidth;
+      }
+
+      // Fill the remainder of the area with a slightly darker color
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(0, pianoRollHeight, canvas.width, canvas.height - pianoRollHeight);
+    }
+
+    function isBlackKey(midiNote) {
+      // Basic layout: note % 12 in {1,3,6,8,10} -> black key
+      const semitone = midiNote % 12;
+      return [1,3,6,8,10].includes(semitone);
+    }
+
     function drawHitLine() {
       ctx.strokeStyle = "#fffa";
       ctx.lineWidth = 4;
@@ -295,6 +355,7 @@
     }
 
     async function fetchSongs() {
+      // Fetch list of MIDI files from the S3 bucket
       const response = await fetch('https://eric-terry-public.s3.us-east-1.amazonaws.com/?prefix=terryfamily.com/key-frenzy/songs/');
       const text = await response.text();
       const parser = new DOMParser();
@@ -393,11 +454,12 @@
         pitchMin = Math.min(...allPitches);
         pitchMax = Math.max(...allPitches);
       }
+
+      // For each selected track, push note info
       selectedTracks.forEach(tIndex => {
         if (!allTracks[tIndex - 1]) return;
         allTracks[tIndex - 1].notes.forEach(note => {
           trackNotes.push({
-            // spawn time is set so the note arrives at hitLineY at the correct moment
             time: (note.time * 1000) + noteDelayMs - travelTimeMs,
             lane: mapPitchToLane(note.midi),
             duration: note.duration * 1000,
@@ -406,8 +468,10 @@
           });
         });
       });
+
       trackNotes.sort((a, b) => a.time - b.time);
 
+      // Merge overlapping notes (for the same lane)
       const uniqueTrackNotes = [];
       trackNotes.forEach(note => {
         const overlappingNoteIndex = uniqueTrackNotes.findIndex(uniqueNote =>
@@ -428,9 +492,22 @@
         }
       });
       trackNotes = uniqueTrackNotes;
+
+      // If level 8 (piano-roll) is chosen, fill laneByKey["piano-roll"] dynamically
+      if (currentDifficulty === "piano-roll") {
+        laneByKey["piano-roll"] = [];
+        for (let i = pitchMin; i <= pitchMax; i++) {
+          laneByKey["piano-roll"].push(i);
+        }
+      }
     }
 
     function mapPitchToLane(midiNote) {
+      // If in piano-roll mode, we just return the MIDI note as the "lane"
+      if (currentDifficulty === "piano-roll") {
+        return midiNote;
+      }
+
       if (pitchMax === pitchMin) return 0;
       const normalized = (midiNote - pitchMin) / (pitchMax - pitchMin);
       const totalLanes = laneByKey[currentDifficulty].length;
@@ -476,8 +553,18 @@
     }
 
     function drawNotes() {
-      const allPossibleKeys = laneByKey["legendary"];
+      if (currentDifficulty === "piano-roll") {
+        drawNotesPianoRoll();
+      } else {
+        drawNotesKeyboardMode();
+      }
+    }
+
+    function drawNotesKeyboardMode() {
+      // For levels 1-7
+      const allPossibleKeys = laneByKey["legendary"]; // widest set of keys
       const laneWidth = canvas.width / allPossibleKeys.length;
+
       for (let i = 0; i < activeNotes.length; i++) {
         const note = activeNotes[i];
         const noteHeight = getNoteHeight(note.duration);
@@ -485,6 +572,36 @@
         const yTop = note.y;
         ctx.fillStyle = note.color;
         ctx.fillRect(x + laneWidth * 0.1, yTop, laneWidth * 0.8, noteHeight);
+        if (note.text) {
+          ctx.fillStyle = note.textColor;
+          ctx.font = "16px Roboto";
+          ctx.textAlign = "center";
+          ctx.textBaseline = 'middle';
+          ctx.fillText(note.text, x + laneWidth * 0.5, yTop + noteHeight / 2);
+        }
+      }
+    }
+
+    function drawNotesPianoRoll() {
+      // In piano-roll mode, each lane is a MIDI note in [pitchMin..pitchMax]
+      const pianoKeys = laneByKey["piano-roll"];
+      const totalKeys = pianoKeys.length;
+      if (totalKeys === 0) return;
+      const laneWidth = canvas.width / totalKeys;
+
+      for (let i = 0; i < activeNotes.length; i++) {
+        const note = activeNotes[i];
+        const noteHeight = getNoteHeight(note.duration);
+        const laneIndex = pianoKeys.indexOf(note.lane);
+        if (laneIndex < 0) continue;
+
+        // Note area is below the piano roll
+        const x = laneIndex * laneWidth;
+        const yTop = note.y;
+
+        ctx.fillStyle = note.color;
+        ctx.fillRect(x + laneWidth * 0.1, yTop, laneWidth * 0.8, noteHeight);
+
         if (note.text) {
           ctx.fillStyle = note.textColor;
           ctx.font = "16px Roboto";
@@ -516,10 +633,13 @@
       missedNotes++;
     }
 
+    // Computer keyboard listeners (only used for levels 1-7)
     window.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase();
-      handleKeyHit(key);
       pressedKeys.add(key);
+      if (currentDifficulty !== "piano-roll") {
+        handleKeyHit(key);
+      }
       drawStaticUI();
     });
 
@@ -529,10 +649,89 @@
       drawStaticUI();
     });
 
-    function handleKeyHit(key) {
-      if (!laneByKey[currentDifficulty].includes(key)) return;
+    // MIDI handling
+    if (navigator.requestMIDIAccess) {
+      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+    } else {
+      console.error('WebMIDI is not supported in this browser.');
+    }
+
+    function onMIDISuccess(midi) {
+      midiAccess = midi;
+      const inputs = midiAccess.inputs.values();
+      let deviceCount = 0;
+      for (let input of inputs) {
+        deviceCount++;
+        input.onmidimessage = getMIDIMessage;
+      }
+      if (deviceCount > 0) {
+        isMidiAvailable = true;
+        addLevel8IfMidiAvailable();
+      }
+    }
+
+    function onMIDIFailure() {
+      console.error('Could not access your MIDI devices.');
+    }
+
+    function addLevel8IfMidiAvailable() {
+      // Dynamically add the "8" button if there's a MIDI device
+      const buttonContainer = document.getElementById('levelSelection');
+      // Avoid duplicates if user refreshes or something
+      const existingButton = buttonContainer.querySelector("button[data-level='8']");
+      if (!existingButton) {
+        const btn = document.createElement('button');
+        btn.textContent = "8";
+        btn.dataset.level = "8";
+        btn.onclick = () => selectLevel(8);
+        buttonContainer.appendChild(btn);
+      }
+    }
+
+    function getMIDIMessage(message) {
+      const [command, note, velocity] = message.data;
+      if (command === 144 && velocity > 0) { // note on
+        handleMidiKeyDown(note);
+      } else if ((command === 128) || (command === 144 && velocity === 0)) {
+        handleMidiKeyUp(note);
+      }
+    }
+
+    function handleMidiKeyDown(midiNote) {
+      midiPressedKeys.add(midiNote);
+      if (currentDifficulty === "piano-roll") {
+        // In piano-roll mode, the user triggers hits with actual MIDI
+        handleKeyHit(null, midiNote);
+      }
+      drawStaticUI();
+    }
+
+    function handleMidiKeyUp(midiNote) {
+      midiPressedKeys.delete(midiNote);
+      drawStaticUI();
+    }
+
+    // This function is called for both computer keys (levels 1-7) and MIDI keys (piano-roll)
+    function handleKeyHit(key, midiNote = null) {
+      // If we are in piano-roll mode, ignore computer keys
+      if (currentDifficulty === "piano-roll") {
+        if (midiNote === null) return; // only handle real MIDI notes
+      } else {
+        // If we are in standard keyboard mode, ignore MIDI
+        if (key === null) return;
+        if (!laneByKey[currentDifficulty].includes(key)) return;
+      }
+
       const threshold = 50;
-      const candidates = activeNotes.filter(n => n.lane === key && !n.hit && !n.missed);
+      // Filter the candidate notes that haven't been hit/missed in the correct lane
+      // Lane can be a letter or a MIDI note
+      let candidates;
+      if (currentDifficulty === "piano-roll") {
+        candidates = activeNotes.filter(n => n.lane === midiNote && !n.hit && !n.missed);
+      } else {
+        candidates = activeNotes.filter(n => n.lane === key && !n.hit && !n.missed);
+      }
+
       let bestNote = null;
       let bestDistance = Infinity;
       for (let i = 0; i < candidates.length; i++) {
@@ -550,8 +749,23 @@
           bestNote.duration / 1000,
           Tone.now() - 0.1
         );
+
+        // If there's an output device, also send MIDI note on/off
+        if (level !== 8) {
+          const output = Array.from(midiAccess.outputs.values())[0];
+          if (output) {
+            output.send([0x90, bestNote.midiNote, 0x7f]); // Note on
+            setTimeout(() => {
+              output.send([0x80, bestNote.midiNote, 0x00]); // Note off
+            }, bestNote.duration);
+          }
+        }
       } else {
-        const laneNotes = trackNotes.filter(n => n.lane === key);
+        // If we missed, we can still optionally trigger some sound
+        const laneNotes = trackNotes.filter(n => {
+          return (currentDifficulty === "piano-roll") ?
+            n.lane === midiNote : n.lane === key;
+        });
         let nearestNote = null;
         let nearestDistance = Infinity;
         if (timidityPlayer && timidityPlayer.context) {
@@ -565,11 +779,22 @@
             }
           }
           if (nearestNote) {
+            // Just a short beep
             userSynth.triggerAttackRelease(
               Tone.Frequency(nearestNote.midiNote, "midi"),
               0.25,
               Tone.now() - 0.1
             );
+
+            if (level !== 8) {
+              const output = Array.from(midiAccess.outputs.values())[0];
+              if (output) {
+                output.send([0x90, nearestNote.midiNote, 0x7f]); // Note on
+                setTimeout(() => {
+                  output.send([0x80, nearestNote.midiNote, 0x00]); // Note off
+                }, 250);
+              }
+            }
           }
         }
       }
@@ -648,7 +873,6 @@
         requestAnimationFrame(gameLoop);
       }
     }
-
     function selectLevel(selectedLevel) {
       if (isPlaying) return;
       level = selectedLevel;

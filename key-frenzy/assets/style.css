@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  font-family: 'Roboto', sans-serif;
+  background: #333;
+  color: #eee;
+}
+#gameCanvas {
+  background: #111;
+  width: calc(100vw - 350px);
+  height: 100vh;
+  min-width: 600px;
+}
+#sideDiv {
+  width: 350px;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+#sideDiv h2 {
+  text-align: center;
+  color: #eee;
+  font-size: 2.5em;
+  margin: 20px 0;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #666, #aaa);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: sticky;
+  top: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 1;
+}
+#songList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 0;
+  overflow-y: auto;
+}
+#songList li {
+  padding: 15px;
+  margin: 10px;
+  background: #333;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.3s, transform 0.2s;
+}
+#songList li:hover {
+  background: #444;
+  transform: scale(1.05);
+}
+#currentSongInfo {
+  padding: 15px;
+  color: #eee;
+  background: #444;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  margin: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+#currentSongInfo h3 {
+  margin: 5px 0;
+  font-size: 1.6em;
+  color: #ccc;
+  text-align: center;
+}
+#currentSongInfo p {
+  margin: 5px 0;
+  font-size: 1.3em;
+  color: #fff;
+  text-align: center;
+}
+#levelSelection {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+#levelSelection button {
+  margin: 3px;
+  padding: 5px 10px;
+  background: #555;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+#levelSelection button:hover {
+  background: #666;
+}
+#levelSelection button.selected {
+  background: #888;
+  font-weight: bold;
+}
+#startButton, #stopButton {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 20px;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+#startButton {
+  background: #28a745;
+}
+#startButton:hover {
+  background: #218838;
+}
+#stopButton {
+  background: #dc3545;
+}
+#stopButton:hover {
+  background: #c82333;
+}
