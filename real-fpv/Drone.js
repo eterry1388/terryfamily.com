@@ -120,12 +120,12 @@ export class Drone {
     // 8) Optional: Keep the drone above ground to avoid infinite fall
     //    Real sims might implement collisions, raycasting, etc.
     //--------------------------------------------------------------------------
-    if (this.mesh.position.y < 0.1) {
-      this.mesh.position.y = 0.1;
-      // Zero out velocity to avoid sinking below ground
-      if (this.velocity.y < 0) {
-        this.velocity.y = 0;
-      }
-    }
+    // if (this.mesh.position.y < 0.1) {
+    //   this.mesh.position.y = 0.1;
+    //   // Zero out velocity to avoid sinking below ground
+    //   if (this.velocity.y < 0) {
+    //     this.velocity.y = 0;
+    //   }
+    // }
   }
 }

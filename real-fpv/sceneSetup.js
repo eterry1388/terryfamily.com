@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const baseUrl = `https://eric-terry-public.s3.amazonaws.com/terryfamily.com/real-fpv/worlds/`;
+
 const sceneAssets = {
-  sea_keep_lonely_watcher: { path: 'sea_keep_lonely_watcher.glb', scale: 1.0, position: { x: 0, y: 0, z: 0 } },
-  cyberpunk_2077_night_city_3d_map: { path: 'cyberpunk_2077_night_city_3d_map.glb', scale: 0.03, position: { x: 0, y: 0, z: 0 } },
-  tokyo_shinbashi: { path: 'tokyo_shinbashi.glb', scale: 100.0, position: { x: 0, y: 0, z: 0 } },
-  jinshan_temple_cishou_pagoda: { path: 'jinshan_temple_cishou_pagoda.glb', scale: 3.0, position: { x: 0, y: 0, z: 0 } },
-  k2: { path: 'k2.glb', scale: 0.3, position: { x: 0, y: 0, z: 0 } },
-  desmoines1: { path: 'desmoines1.glb', scale: 300, position: { x: 0, y: 500, z: 0 } },
-  desmoines: { path: 'desmoines.glb', scale: 300, position: { x: 0, y: 500, z: 0 } },
-  desmoines3: { path: 'desmoines3.glb', scale: 5, position: { x: 0, y: -100, z: 0 } },
+  sea_keep_lonely_watcher: { path: `${baseUrl}sea_keep_lonely_watcher.glb`, scale: 1.0, position: { x: 0, y: 0, z: 0 } },
+  cyberpunk_2077_night_city_3d_map: { path: `${baseUrl}cyberpunk_2077_night_city_3d_map.glb`, scale: 0.03, position: { x: 0, y: 0, z: 0 } },
+  tokyo_shinbashi: { path: `${baseUrl}tokyo_shinbashi.glb`, scale: 100.0, position: { x: 0, y: 0, z: 0 } },
+  jinshan_temple_cishou_pagoda: { path: `${baseUrl}jinshan_temple_cishou_pagoda.glb`, scale: 3.0, position: { x: 0, y: 0, z: 0 } },
+  k2: { path: `${baseUrl}k2.glb`, scale: 0.3, position: { x: 0, y: 0, z: 0 } },
+  desmoines1: { path: `${baseUrl}desmoines1.glb`, scale: 300, position: { x: 0, y: 500, z: 0 } },
+  desmoines: { path: `${baseUrl}desmoines.glb`, scale: 300, position: { x: 0, y: 500, z: 0 } },
+  desmoines3: { path: `${baseUrl}desmoines3.glb`, scale: 5, position: { x: 0, y: -1300, z: 0 } },
 }
 
 const currentScene = sceneAssets.desmoines3;

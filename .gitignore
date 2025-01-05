@@ -3,5 +3,6 @@
 *.wav
 *.mid
 *.midi
-*.pat
 *.flac
+
+node_modules
