@@ -10,3 +10,9 @@ http-server -p 8000
 ```
 npx vite
 ```
+
+### Build
+
+```
+npx vite build
+```
