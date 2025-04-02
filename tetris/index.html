@@ -254,7 +254,7 @@
   <h1>TETRIS</h1>
   
   <div class="game-container">
-    <canvas id="game-board" width="300" height="600"></canvas>
+    <canvas id="game-board" width="300" height="600" style="display: block;"></canvas>
     
     <div class="side-panel">
       <div class="next-piece-container">
@@ -386,6 +386,11 @@
         canvas.style.width = `${maxWidth}px`;
         canvas.style.height = `${newHeight}px`;
       }
+      
+      // Make sure canvas is properly initialized
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Scale for high DPI displays
       ctx.scale(1, 1);
@@ -824,8 +829,9 @@
       linesElement.textContent = lines;
       levelElement.textContent = `Level: ${level}`;
       
-      // Hide start button
+      // Hide start button and ensure canvas is visible
       startButton.style.display = 'none';
+      canvas.style.display = 'block';
       
       // Create initial pieces
       piece = createPiece(getRandomPiece());
