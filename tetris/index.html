@@ -22,30 +22,43 @@
     
     .game-container {
       display: flex;
-      flex-direction: row;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
       gap: 20px;
-      margin-top: 20px;
+      margin-top: 10px;
+      width: 100%;
+      max-width: 800px;
+    }
+    
+    @media (min-width: 768px) {
+      .game-container {
+        flex-direction: row;
+        align-items: flex-start;
+      }
     }
     
     #game-board {
       border: 2px solid #333;
       background-color: #000;
+      max-width: 100%;
+      height: auto;
     }
     
     .side-panel {
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      width: 200px;
+      gap: 15px;
+      width: 100%;
+      max-width: 300px;
     }
     
     .next-piece-container {
       border: 2px solid #333;
       background-color: #111;
       padding: 10px;
-      height: 120px;
+      height: auto;
+      min-height: 100px;
     }
     
     .score-container {
@@ -60,10 +73,79 @@
       padding: 10px;
     }
     
+    .mobile-controls {
+      display: none;
+      width: 100%;
+      max-width: 300px;
+      margin-top: 15px;
+    }
+    
+    @media (max-width: 767px) {
+      .mobile-controls {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+        gap: 10px;
+      }
+      
+      .controls-container {
+        display: none;
+      }
+    }
+    
+    .control-btn {
+      background-color: rgba(0, 255, 255, 0.2);
+      border: 2px solid #0ff;
+      color: #0ff;
+      border-radius: 8px;
+      font-size: 24px;
+      padding: 15px 0;
+      text-align: center;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    
+    .control-btn:active {
+      background-color: rgba(0, 255, 255, 0.5);
+    }
+    
+    #rotate-btn {
+      grid-column: 3;
+      grid-row: 1;
+    }
+    
+    #left-btn {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    
+    #down-btn {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    
+    #right-btn {
+      grid-column: 3;
+      grid-row: 2;
+    }
+    
+    #drop-btn {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    
     h1 {
       text-shadow: 0 0 10px #0ff, 0 0 20px #0ff, 0 0 30px #0ff;
-      font-size: 48px;
-      margin-bottom: 10px;
+      font-size: 36px;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+    
+    @media (min-width: 768px) {
+      h1 {
+        font-size: 48px;
+        margin-bottom: 10px;
+      }
     }
     
     h2 {
@@ -108,12 +190,24 @@
       border-radius: 10px;
       text-align: center;
       display: none;
+      width: 80%;
+      max-width: 300px;
     }
     
     #game-over h2 {
       color: #f00;
-      font-size: 36px;
+      font-size: 28px;
       margin-bottom: 20px;
+    }
+    
+    @media (min-width: 768px) {
+      #game-over h2 {
+        font-size: 36px;
+      }
+      
+      #game-over {
+        max-width: 400px;
+      }
     }
     
     #home-button {
@@ -131,6 +225,28 @@
     #level-display {
       font-size: 18px;
       margin-top: 10px;
+    }
+    
+    /* Orientation warning for mobile */
+    #orientation-warning {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    @media (max-height: 500px) and (max-width: 767px) {
+      #orientation-warning {
+        display: flex;
+      }
     }
   </style>
 </head>
@@ -166,11 +282,26 @@
     </div>
   </div>
   
+  <div class="mobile-controls">
+    <div id="drop-btn" class="control-btn">DROP</div>
+    <div id="rotate-btn" class="control-btn">ROTATE</div>
+    <div id="left-btn" class="control-btn">←</div>
+    <div id="down-btn" class="control-btn">↓</div>
+    <div id="right-btn" class="control-btn">→</div>
+  </div>
+  
   <div id="game-over">
     <h2>GAME OVER</h2>
     <div id="final-score">Score: 0</div>
     <button id="restart-button">Play Again</button>
     <button id="home-button" onclick="goToHome()">Go Home</button>
+  </div>
+  
+  <div id="orientation-warning">
+    <div>
+      <h2>Please rotate your device</h2>
+      <p>Tetris works best in portrait orientation on mobile devices.</p>
+    </div>
   </div>
   
   <script>
@@ -216,6 +347,7 @@
     let gameStarted = false;
     let gameOver = false;
     let requestId;
+    let isMobile = false;
     
     // DOM elements
     const startButton = document.getElementById('start-button');
@@ -226,6 +358,13 @@
     const gameOverElement = document.getElementById('game-over');
     const finalScoreElement = document.getElementById('final-score');
     
+    // Mobile control elements
+    const leftBtn = document.getElementById('left-btn');
+    const rightBtn = document.getElementById('right-btn');
+    const downBtn = document.getElementById('down-btn');
+    const rotateBtn = document.getElementById('rotate-btn');
+    const dropBtn = document.getElementById('drop-btn');
+    
     // Initialize the game
     function init() {
       canvas = document.getElementById('game-board');
@@ -234,14 +373,142 @@
       nextCanvas = document.getElementById('next-piece');
       nextCtx = nextCanvas.getContext('2d');
       
+      // Check if device is mobile
+      isMobile = window.innerWidth < 768;
+      
+      // Adjust canvas size for mobile
+      if (isMobile) {
+        // Calculate the maximum size that fits the screen
+        const maxWidth = Math.min(window.innerWidth - 20, 300);
+        const ratio = canvas.height / canvas.width;
+        const newHeight = maxWidth * ratio;
+        
+        canvas.style.width = `${maxWidth}px`;
+        canvas.style.height = `${newHeight}px`;
+      }
+      
       // Scale for high DPI displays
       ctx.scale(1, 1);
       nextCtx.scale(1, 1);
       
-      // Event listeners
+      // Event listeners for keyboard
       document.addEventListener('keydown', handleKeyPress);
       startButton.addEventListener('click', startGame);
       restartButton.addEventListener('click', restartGame);
+      
+      // Event listeners for mobile controls
+      setupMobileControls();
+      
+      // Handle window resize
+      window.addEventListener('resize', handleResize);
+    }
+    
+    // Setup mobile control event listeners
+    function setupMobileControls() {
+      // Touch events for mobile buttons
+      leftBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameStarted && !gameOver) {
+          movePiece(-1, 0);
+          draw();
+        }
+      });
+      
+      rightBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameStarted && !gameOver) {
+          movePiece(1, 0);
+          draw();
+        }
+      });
+      
+      downBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameStarted && !gameOver) {
+          if (!movePiece(0, 1)) {
+            lockPiece();
+          }
+          draw();
+        }
+      });
+      
+      rotateBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameStarted && !gameOver) {
+          rotatePiece();
+          draw();
+        }
+      });
+      
+      dropBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameStarted && !gameOver) {
+          hardDrop();
+          draw();
+        }
+      });
+      
+      // Also add mouse events for testing on desktop
+      leftBtn.addEventListener('click', () => {
+        if (gameStarted && !gameOver) {
+          movePiece(-1, 0);
+          draw();
+        }
+      });
+      
+      rightBtn.addEventListener('click', () => {
+        if (gameStarted && !gameOver) {
+          movePiece(1, 0);
+          draw();
+        }
+      });
+      
+      downBtn.addEventListener('click', () => {
+        if (gameStarted && !gameOver) {
+          if (!movePiece(0, 1)) {
+            lockPiece();
+          }
+          draw();
+        }
+      });
+      
+      rotateBtn.addEventListener('click', () => {
+        if (gameStarted && !gameOver) {
+          rotatePiece();
+          draw();
+        }
+      });
+      
+      dropBtn.addEventListener('click', () => {
+        if (gameStarted && !gameOver) {
+          hardDrop();
+          draw();
+        }
+      });
+    }
+    
+    // Handle window resize
+    function handleResize() {
+      isMobile = window.innerWidth < 768;
+      
+      if (isMobile) {
+        // Calculate the maximum size that fits the screen
+        const maxWidth = Math.min(window.innerWidth - 20, 300);
+        const ratio = canvas.height / canvas.width;
+        const newHeight = maxWidth * ratio;
+        
+        canvas.style.width = `${maxWidth}px`;
+        canvas.style.height = `${newHeight}px`;
+      } else {
+        // Reset to default size on desktop
+        canvas.style.width = '';
+        canvas.style.height = '';
+      }
+      
+      // Redraw if game is active
+      if (gameStarted && !gameOver) {
+        draw();
+      }
     }
     
     // Create an empty game board
